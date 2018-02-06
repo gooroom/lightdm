@@ -39,7 +39,6 @@ Architecture: any
 Depends: adduser,
          dbus,
          libpam-systemd [linux-any] | consolekit,
-         lightdm-gtk-greeter | lightdm-greeter,
          ${misc:Depends},
          ${shlibs:Depends}
 Recommends: xserver-xorg
