@@ -1,15 +1,23 @@
 dnl Process this file with autoconf to produce a configure script.
 
-AC_INIT(lightdm, 1.18.3)
+AC_INIT(lightdm, 1.26.0)
 AC_CONFIG_MACRO_DIR(m4)
 AC_CONFIG_HEADER(config.h)
 AM_INIT_AUTOMAKE([1.11 no-dist-gzip dist-xz foreign])
 AM_SILENT_RULES(yes)
+AC_PROG_CC_C99
 LT_INIT
 AM_PROG_CC_C_O
 AC_PROG_CXX
 AC_PROG_LIBTOOL
+AC_PROG_LN_S
+AC_PROG_MKDIR_P
 AM_MAINTAINER_MODE
+
+dnl Check if the compiler really supports `-std=c99`.
+if test "x$ac_cv_prog_cc_c99" == xno; then
+    AC_MSG_ERROR([$CC does not support '-std=c99'.])
+fi
 
 dnl Enable compile warnings (only supporting GCC)
 if test "x$GCC" == xyes; then
@@ -43,7 +51,7 @@ AC_CHECK_HEADERS(gcrypt.h, [], AC_MSG_ERROR(libgcrypt not found))
 AC_CHECK_FUNCS(setresgid setresuid clearenv)
 
 PKG_CHECK_MODULES(LIGHTDM, [
-    glib-2.0 >= 2.30
+    glib-2.0 >= 2.44
     gio-2.0 >= 2.26
     gio-unix-2.0
     xdmcp
@@ -71,7 +79,7 @@ PKG_CHECK_MODULES(XCB, [
 ])    
 
 PKG_CHECK_MODULES(LIBLIGHTDM_GOBJECT, [
-    glib-2.0
+    glib-2.0 >= 2.44
     gio-2.0 >= 2.26
     gio-unix-2.0
     gobject-2.0
@@ -90,17 +98,26 @@ if test x"$enable_liblightdm_qt4" != "xno" ; then
         QtDBus
         QtGui
     ],
-    [compile_liblightdm_qt4=yes
-     AC_CHECK_TOOLS(MOC4, [moc-qt4 moc])
-     if test x"$(readlink $(which $MOC4))" = xqtchooser; then
-         MOC4="$MOC4 --qt=qt4"
-     fi
-    ],
+    [compile_liblightdm_qt4=yes],
     [if test "x$enable_liblightdm_qt4" != xauto; then
         AC_MSG_FAILURE(
           [--enable-liblightdm-qt was given, but test for Qt4 failed])
       fi
     ])
+
+    AC_CHECK_TOOLS(MOC4, [moc-qt4 moc])
+    if test x$MOC4 = x; then
+        compile_liblightdm_qt4=no
+        if test "x$enable_liblightdm_qt4" != xauto; then
+            AC_MSG_FAILURE(
+              [--enable-liblightdm-qt4 was given, but MOC not found])
+        fi
+    fi
+    if test x"$MOC4" = xmoc; then
+        if test x"$(readlink $(which $MOC4))" = xqtchooser; then
+            MOC4="$MOC4 --qt=4"
+        fi
+    fi
 fi
 AM_CONDITIONAL(COMPILE_LIBLIGHTDM_QT4, test x"$compile_liblightdm_qt4" != "xno")
 
@@ -115,17 +132,26 @@ if test x"$enable_liblightdm_qt5" != "xno"; then
         Qt5DBus
         Qt5Gui
     ],
-    [compile_liblightdm_qt5=yes
-     AC_CHECK_TOOLS(MOC5, [moc])
-     if test x"$(readlink $(which $MOC5))" = xqtchooser; then
-         MOC5="$MOC5 --qt=qt5"
-     fi
-    ],
+    [compile_liblightdm_qt5=yes],
     [if test "x$enable_liblightdm_qt5" != xauto; then
         AC_MSG_FAILURE(
           [--enable-liblightdm-qt5 was given, but test for Qt5 failed])
       fi
     ])
+
+    AC_CHECK_TOOLS(MOC5, [moc-qt5 moc])
+    if test x$MOC5 = x; then
+        compile_liblightdm_qt5=no
+        if test "x$enable_liblightdm_qt5" != xauto; then
+            AC_MSG_FAILURE(
+              [--enable-liblightdm-qt5 was given, but MOC not found])
+        fi
+    fi
+    if test x"$MOC5" = xmoc; then
+        if test x"$(readlink $(which $MOC5))" = xqtchooser; then
+            MOC5="$MOC5 --qt=5"
+        fi
+    fi
 fi
 AM_CONDITIONAL(COMPILE_LIBLIGHTDM_QT5, test x"$compile_liblightdm_qt5" != "xno")
 

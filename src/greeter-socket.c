@@ -41,14 +41,12 @@ struct GreeterSocketPrivate
     Greeter *greeter;
 };
 
-G_DEFINE_TYPE (GreeterSocket, greeter_socket, G_TYPE_OBJECT);
+G_DEFINE_TYPE (GreeterSocket, greeter_socket, G_TYPE_OBJECT)
 
 GreeterSocket *
 greeter_socket_new (const gchar *path)
 {
-    GreeterSocket *socket;
-
-    socket = g_object_new (GREETER_SOCKET_TYPE, NULL);
+    GreeterSocket *socket = g_object_new (GREETER_SOCKET_TYPE, NULL);
     socket->priv->path = g_strdup (path);
 
     return socket;
@@ -67,13 +65,10 @@ greeter_disconnected_cb (Greeter *greeter, GreeterSocket *socket)
 static gboolean
 greeter_connect_cb (GSocket *s, GIOCondition condition, GreeterSocket *socket)
 {
-    GSocket *new_socket;
-    GError *error = NULL;
-
-    new_socket = g_socket_accept (socket->priv->socket, NULL, &error);
+    g_autoptr(GError) error = NULL;
+    g_autoptr(GSocket) new_socket = g_socket_accept (socket->priv->socket, NULL, &error);
     if (error)
         g_warning ("Failed to accept greeter connection: %s", error->message);
-    g_clear_error (&error);
     if (!new_socket)
         return G_SOURCE_CONTINUE;
 
@@ -81,14 +76,13 @@ greeter_connect_cb (GSocket *s, GIOCondition condition, GreeterSocket *socket)
     if (socket->priv->greeter)
     {
         g_socket_close (new_socket, NULL);
-        g_object_unref (new_socket);
         return G_SOURCE_CONTINUE;
     }
 
-    socket->priv->greeter_socket = new_socket;
+    socket->priv->greeter_socket = g_steal_pointer (&new_socket);
     g_signal_emit (socket, signals[CREATE_GREETER], 0, &socket->priv->greeter);
     g_signal_connect (socket->priv->greeter, GREETER_SIGNAL_DISCONNECTED, G_CALLBACK (greeter_disconnected_cb), socket);
-    greeter_set_file_descriptors (socket->priv->greeter, g_socket_get_fd (new_socket), g_socket_get_fd (new_socket));
+    greeter_set_file_descriptors (socket->priv->greeter, g_socket_get_fd (socket->priv->greeter_socket), g_socket_get_fd (socket->priv->greeter_socket));
 
     return G_SOURCE_CONTINUE;
 }
@@ -96,9 +90,6 @@ greeter_connect_cb (GSocket *s, GIOCondition condition, GreeterSocket *socket)
 gboolean
 greeter_socket_start (GreeterSocket *socket, GError **error)
 {
-    GSocketAddress *address;
-    gboolean result;
-
     g_return_val_if_fail (socket != NULL, FALSE);
     g_return_val_if_fail (socket->priv->socket == NULL, FALSE);  
 
@@ -107,9 +98,8 @@ greeter_socket_start (GreeterSocket *socket, GError **error)
         return FALSE;
 
     unlink (socket->priv->path);  
-    address = g_unix_socket_address_new (socket->priv->path);
-    result = g_socket_bind (socket->priv->socket, address, FALSE, error);
-    g_object_unref (address);
+    g_autoptr(GSocketAddress) address = g_unix_socket_address_new (socket->priv->path);
+    gboolean result = g_socket_bind (socket->priv->socket, address, FALSE, error);
     if (!result)
         return FALSE;
     if (!g_socket_listen (socket->priv->socket, error))
@@ -146,8 +136,8 @@ greeter_socket_finalize (GObject *object)
     GreeterSocket *self = GREETER_SOCKET (object);
 
     if (self->priv->path)
-        unlink (self->priv->path); 
-    g_free (self->priv->path);
+        unlink (self->priv->path);
+    g_clear_pointer (&self->priv->path, g_free);
     g_clear_object (&self->priv->socket);
     g_clear_object (&self->priv->source);
     g_clear_object (&self->priv->greeter_socket);

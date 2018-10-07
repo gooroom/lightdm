@@ -31,10 +31,14 @@ class Q_DECL_EXPORT Greeter : public QObject
     Q_PROPERTY(bool selectGuest READ selectGuestHint CONSTANT)
 
     Q_PROPERTY(QString hostname READ hostname CONSTANT)
+    Q_PROPERTY(QString osId READ osId CONSTANT)
+    Q_PROPERTY(QString osName READ osName CONSTANT)
+    Q_PROPERTY(QString osPrettyName READ osPrettyName CONSTANT)
+    Q_PROPERTY(QString osVersion READ osVersion CONSTANT)
+    Q_PROPERTY(QString osVersionId READ osVersionId CONSTANT)
+    Q_PROPERTY(QString motd READ motd CONSTANT)
     Q_PROPERTY(bool hasGuestAccount READ hasGuestAccountHint CONSTANT)
     Q_PROPERTY(bool locked READ lockHint CONSTANT)
-
-    Q_PROPERTY(QString hostname READ hostname CONSTANT)
 
     Q_ENUMS(PromptType MessageType)
 
@@ -62,6 +66,7 @@ public:
     QString selectUserHint() const;
     bool selectGuestHint() const;
     QString autologinUserHint() const;
+    QString autologinSessionHint() const;  
     bool autologinGuestHint() const;
     int autologinTimeoutHint() const;
 
@@ -69,6 +74,12 @@ public:
     bool isAuthenticated() const;
     QString authenticationUser() const;
     QString hostname() const;
+    QString osId() const;
+    QString osName() const;
+    QString osPrettyName() const;
+    QString osVersion() const;
+    QString osVersionId() const;
+    QString motd() const;
 
 public Q_SLOTS:
     bool connectToDaemonSync();

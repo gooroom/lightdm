@@ -8,6 +8,8 @@ lightdm_SOURCES = \
 	console-kit.h \
 	display-manager.c \
 	display-manager.h \
+	display-manager-service.c \
+	display-manager-service.h \
 	display-server.c \
 	display-server.h \
 	greeter.c \
@@ -31,12 +33,12 @@ lightdm_SOURCES = \
 	process.h \
 	seat.c \
 	seat.h \
+	seat-local.c \
+	seat-local.h \
 	seat-unity.c \
 	seat-unity.h \
 	seat-xdmcp-session.c \
 	seat-xdmcp-session.h \
-	seat-xlocal.c \
-	seat-xlocal.h \
 	seat-xremote.c \
 	seat-xremote.h \
 	seat-xvnc.c \
@@ -88,8 +90,7 @@ lightdm_CFLAGS = \
 	-DCACHE_DIR=\"$(localstatedir)/cache/lightdm\" \
 	-DSESSIONS_DIR=\"$(pkgdatadir)/sessions:$(datadir)/xsessions:$(datadir)/wayland-sessions\" \
 	-DWAYLAND_SESSIONS_DIR=\"$(datadir)/wayland-sessions\" \
-	-DREMOTE_SESSIONS_DIR=\"$(pkgdatadir)/remote-sessions\" \
-	-DGREETERS_DIR=\"$(pkgdatadir)/greeters:$(datadir)/xgreeters\"
+	-DREMOTE_SESSIONS_DIR=\"$(pkgdatadir)/remote-sessions\"
 
 lightdm_LDADD = \
 	$(LIGHTDM_LIBS) \

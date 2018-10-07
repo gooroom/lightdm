@@ -16,18 +16,58 @@
 #include "user-list.h"
 #include "lightdm/user.h"
 
+/**
+ * SECTION:user-list
+ * @short_description: Get information on user accounts on this system
+ * @include: lightdm.h
+ *
+ * An object that contains information about local user accounts.
+ */
+
+/**
+ * SECTION:user
+ * @short_description: Get information on a user account
+ * @include: lightdm.h
+ *
+ * Information about a local user account.
+ */
+
+/**
+ * LightDMUserList:
+ *
+ * #LightDMUserList is an opaque data structure and can only be accessed
+ * using the provided functions.
+ */
+
+/**
+ * LightDMUserListClass:
+ *
+ * Class structure for #LightDMUserList.
+ */
+
+/**
+ * LightDMUser:
+ *
+ * #LightDMUser is an opaque data structure and can only be accessed
+ * using the provided functions.
+ */
+
+/**
+ * LightDMUserClass:
+ *
+ * Class structure for #LightDMUser.
+ */
+
 enum
 {
-    LIST_PROP_0,
-    LIST_PROP_NUM_USERS,
+    LIST_PROP_NUM_USERS = 1,
     LIST_PROP_LENGTH,  
     LIST_PROP_USERS,
 };
 
 enum
 {
-    USER_PROP_0,
-    USER_PROP_COMMON_USER,
+    USER_PROP_COMMON_USER = 1,
     USER_PROP_NAME,
     USER_PROP_REAL_NAME,
     USER_PROP_DISPLAY_NAME,
@@ -72,8 +112,8 @@ typedef struct
     CommonUser *common_user;
 } LightDMUserPrivate;
 
-G_DEFINE_TYPE (LightDMUserList, lightdm_user_list, G_TYPE_OBJECT);
-G_DEFINE_TYPE (LightDMUser, lightdm_user, G_TYPE_OBJECT);
+G_DEFINE_TYPE (LightDMUserList, lightdm_user_list, G_TYPE_OBJECT)
+G_DEFINE_TYPE (LightDMUser, lightdm_user, G_TYPE_OBJECT)
 
 #define GET_LIST_PRIVATE(obj) G_TYPE_INSTANCE_GET_PRIVATE ((obj), LIGHTDM_TYPE_USER_LIST, LightDMUserListPrivate)
 #define GET_USER_PRIVATE(obj) G_TYPE_INSTANCE_GET_PRIVATE ((obj), LIGHTDM_TYPE_USER, LightDMUserPrivate)
@@ -132,9 +172,8 @@ static void
 user_list_removed_cb (CommonUserList *common_list, CommonUser *common_user, LightDMUserList *user_list)
 {
     LightDMUserListPrivate *priv = GET_LIST_PRIVATE (user_list);
-    GList *link;
 
-    for (link = priv->lightdm_list; link; link = link->next)
+    for (GList *link = priv->lightdm_list; link; link = link->next)
     {
         LightDMUser *lightdm_user = link->data;
         LightDMUserPrivate *user_priv = GET_USER_PRIVATE (lightdm_user);
@@ -152,14 +191,12 @@ static void
 initialize_user_list_if_needed (LightDMUserList *user_list)
 {
     LightDMUserListPrivate *priv = GET_LIST_PRIVATE (user_list);
-    GList *common_users;
-    GList *link;
 
     if (priv->initialized)
         return;
 
-    common_users = common_user_list_get_users (common_user_list_get_instance ());
-    for (link = common_users; link; link = link->next)
+    GList *common_users = common_user_list_get_users (common_user_list_get_instance ());
+    for (GList *link = common_users; link; link = link->next)
     {
         CommonUser *user = link->data;
         LightDMUser *lightdm_user = wrap_common_user (user);
@@ -211,21 +248,19 @@ lightdm_user_list_get_users (LightDMUserList *user_list)
  * @user_list: A #LightDMUserList
  * @username: Name of user to get.
  *
- * Get infomation about a given user or #NULL if this user doesn't exist.
+ * Get information about a given user or #NULL if this user doesn't exist.
  *
  * Return value: (transfer none): A #LightDMUser entry for the given user.
  **/
 LightDMUser *
 lightdm_user_list_get_user_by_name (LightDMUserList *user_list, const gchar *username)
 {
-    GList *link;
-
     g_return_val_if_fail (LIGHTDM_IS_USER_LIST (user_list), NULL);
     g_return_val_if_fail (username != NULL, NULL);
 
     initialize_user_list_if_needed (user_list);
 
-    for (link = GET_LIST_PRIVATE (user_list)->lightdm_list; link; link = link->next)
+    for (GList *link = GET_LIST_PRIVATE (user_list)->lightdm_list; link; link = link->next)
     {
         LightDMUser *user = link->data;
         if (g_strcmp0 (lightdm_user_get_name (user), username) == 0)
@@ -241,10 +276,10 @@ lightdm_user_list_init (LightDMUserList *user_list)
 }
 
 static void
-lightdm_user_list_set_property (GObject    *object,
-                                guint       prop_id,
+lightdm_user_list_set_property (GObject      *object,
+                                guint         prop_id,
                                 const GValue *value,
-                                GParamSpec *pspec)
+                                GParamSpec   *pspec)
 {
     G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
 }
@@ -255,9 +290,7 @@ lightdm_user_list_get_property (GObject    *object,
                                 GValue     *value,
                                 GParamSpec *pspec)
 {
-    LightDMUserList *self;
-
-    self = LIGHTDM_USER_LIST (object);
+    LightDMUserList *self = LIGHTDM_USER_LIST (object);
 
     switch (prop_id)
     {
@@ -319,7 +352,7 @@ lightdm_user_list_class_init (LightDMUserListClass *klass)
     /**
      * LightDMUserList::user-added:
      * @user_list: A #LightDMUserList
-     * @user: The #LightDM user that has been added.
+     * @user: The #LightDMUser that has been added.
      *
      * The ::user-added signal gets emitted when a user account is created.
      **/
@@ -335,7 +368,7 @@ lightdm_user_list_class_init (LightDMUserListClass *klass)
     /**
      * LightDMUserList::user-changed:
      * @user_list: A #LightDMUserList
-     * @user: The #LightDM user that has been changed.
+     * @user: The #LightDMUser that has been changed.
      *
      * The ::user-changed signal gets emitted when a user account is modified.
      **/
@@ -351,7 +384,7 @@ lightdm_user_list_class_init (LightDMUserListClass *klass)
     /**
      * LightDMUserList::user-removed:
      * @user_list: A #LightDMUserList
-     * @user: The #LightDM user that has been removed.
+     * @user: The #LightDMUser that has been removed.
      *
      * The ::user-removed signal gets emitted when a user account is removed.
      **/
@@ -491,7 +524,7 @@ lightdm_user_get_layout (LightDMUser *user)
  *
  * Get the configured keyboard layouts for a user.
  *
- * Return value: (transfer none): A NULL-terminated array of keyboard layouts for the given user.  Copy the values if you want to use them long term.
+ * Return value: (transfer none) (array zero-terminated=1): A NULL-terminated array of keyboard layouts for the given user.  Copy the values if you want to use them long term.
  **/
 const gchar * const *
 lightdm_user_get_layouts (LightDMUser *user)
@@ -591,9 +624,7 @@ lightdm_user_get_property (GObject    *object,
                            GValue     *value,
                            GParamSpec *pspec)
 {
-    LightDMUser *self;
-
-    self = LIGHTDM_USER (object);
+    LightDMUser *self = LIGHTDM_USER (object);
 
     switch (prop_id)
     {

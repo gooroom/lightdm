@@ -7,6 +7,7 @@
 #include <QLightDM/Greeter>
 #include <QLightDM/Power>
 #include <QLightDM/UsersModel>
+#include <QLightDM/SessionsModel>
 #include <QtCore/QSettings>
 #include <QtCore/QDebug>
 #include <QtCore/QCoreApplication>
@@ -20,6 +21,7 @@ static QSettings *config = NULL;
 static QLightDM::PowerInterface *power = NULL;
 static TestGreeter *greeter = NULL;
 static QLightDM::UsersModel *users_model = NULL;
+static QLightDM::SessionsModel *sessions_model = NULL;
 
 TestGreeter::TestGreeter ()
 {
@@ -69,21 +71,14 @@ void TestGreeter::printHints ()
         status_notify ("%s SHOW-MANUAL-LOGIN-HINT", greeter_id);
     if (!showRemoteLoginHint ())
         status_notify ("%s SHOW-REMOTE-LOGIN-HINT=FALSE", greeter_id);
-    int timeout = autologinTimeoutHint ();
     if (autologinUserHint () != "")
-    {
-        if (timeout != 0)
-            status_notify ("%s AUTOLOGIN-USER USERNAME=%s TIMEOUT=%d", greeter_id, greeter->autologinUserHint ().toAscii ().constData (), timeout);
-        else
-            status_notify ("%s AUTOLOGIN-USER USERNAME=%s", greeter_id, greeter->autologinUserHint ().toAscii ().constData ());
-    }
-    else if (autologinGuestHint ())
-    {
-        if (timeout != 0)
-            status_notify ("%s AUTOLOGIN-GUEST TIMEOUT=%d", greeter_id, timeout);
-        else
-            status_notify ("%s AUTOLOGIN-GUEST", greeter_id);
-    }
+        status_notify ("%s AUTOLOGIN-USER-HINT=%s", greeter_id, autologinUserHint ().toAscii ().constData ());
+    if (autologinGuestHint ())
+        status_notify ("%s AUTOLOGIN-GUEST-HINT", greeter_id);
+    if (autologinSessionHint () != "")
+        status_notify ("%s AUTOLOGIN-SESSION-HINT=%s", greeter_id, autologinSessionHint ().toAscii ().constData ());
+    if (autologinTimeoutHint () != 0)
+        status_notify ("%s AUTOLOGIN-TIMEOUT-HINT=%d", greeter_id, autologinTimeoutHint ());
 }
 
 void TestGreeter::idle ()
@@ -161,12 +156,12 @@ request_cb (const gchar *name, GHashTable *params)
         if (g_hash_table_lookup (params, "SESSION"))
         {
             if (!greeter->startSessionSync ((const gchar *) g_hash_table_lookup (params, "SESSION")))
-                status_notify ("%s SESSION-FAILED", greeter_id);
+                status_notify ("%s SESSION-FAILED ERROR=%s", greeter_id, "FIXME: Exceptions in Qt");
         }
         else
         {
             if (!greeter->startSessionSync ())
-                status_notify ("%s SESSION-FAILED", greeter_id);
+                status_notify ("%s SESSION-FAILED ERROR=%s", greeter_id, "FIXME: Exceptions in Qt");
         }
     }
 
@@ -190,6 +185,15 @@ request_cb (const gchar *name, GHashTable *params)
         {
             QString name = users_model->data (users_model->index (i, 0), QLightDM::UsersModel::NameRole).toString ();
             status_notify ("%s LOG-USER USERNAME=%s", greeter_id, qPrintable (name));
+        }
+    }
+
+    else if (strcmp (name, "LOG-SESSIONS") == 0)
+    {
+        for (int i = 0; i < sessions_model->rowCount (QModelIndex ()); i++)
+        {
+            QString key = sessions_model->data (sessions_model->index (i, 0), QLightDM::SessionsModel::KeyRole).toString ();
+            status_notify ("%s LOG-SESSION KEY=%s", greeter_id, qPrintable (key));
         }
     }
 
@@ -246,7 +250,7 @@ int
 main(int argc, char *argv[])
 {
     gchar *display, *xdg_seat, *xdg_vtnr, *xdg_session_cookie, *xdg_session_class;
-    GString *status_text;   
+    g_autoptr(GString) status_text = NULL;
 
 #if !defined(GLIB_VERSION_2_36)
     g_type_init ();
@@ -290,7 +294,6 @@ main(int argc, char *argv[])
     if (xdg_session_class)
         g_string_append_printf (status_text, " XDG_SESSION_CLASS=%s", xdg_session_class);
     status_notify ("%s", status_text->str);
-    g_string_free (status_text, TRUE);
 
     config = new QSettings (g_build_filename (getenv ("LIGHTDM_TEST_ROOT"), "script", NULL), QSettings::IniFormat);
 
@@ -321,6 +324,8 @@ main(int argc, char *argv[])
         QObject::connect (users_model, SIGNAL(rowsInserted(const QModelIndex&, int, int)), greeter, SLOT(userRowsInserted(const QModelIndex&, int, int)));
         QObject::connect (users_model, SIGNAL(rowsAboutToBeRemoved(const QModelIndex&, int, int)), greeter, SLOT(userRowsRemoved(const QModelIndex&, int, int)));
     }
+
+    sessions_model = new QLightDM::SessionsModel();
 
     status_notify ("%s CONNECT-TO-DAEMON", greeter_id);
     if (!greeter->connectSync())

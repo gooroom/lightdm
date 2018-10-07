@@ -19,16 +19,13 @@ int
 log_file_open (const gchar *log_filename, LogMode log_mode)
 {
     int open_flags = O_WRONLY | O_CREAT;
-    int log_fd;
-
     if (log_mode == LOG_MODE_BACKUP_AND_TRUNCATE)
     {
         /* Move old file out of the way */
-        gchar *old_filename;
+        g_autofree gchar *old_filename = NULL;
 
         old_filename = g_strdup_printf ("%s.old", log_filename);
         rename (log_filename, old_filename);
-        g_free (old_filename);
 
         open_flags |= O_TRUNC;
     }
@@ -45,7 +42,7 @@ log_file_open (const gchar *log_filename, LogMode log_mode)
     }
 
     /* Open file and log to it */
-    log_fd = open (log_filename, open_flags, 0600);
+    int log_fd = open (log_filename, open_flags, 0600);
     if (log_fd < 0)
         g_warning ("Failed to open log file %s: %s", log_filename, g_strerror (errno));
 

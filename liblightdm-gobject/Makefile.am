@@ -80,12 +80,8 @@ pkgconfig_DATA = liblightdm-gobject-1.pc
 CLEANFILES = \
 	$(gir_DATA) \
 	$(typelib_DATA) \
-	$(vapi_DATA)
-
-DISTCLEANFILES = \
-	$(pkgconfig_DATA) \
-	$(gir_DATA) \
-	$(typelib_DATA)
+	$(VAPIGEN_VAPIS) \
+	$(pkgconfig_DATA)
 
 EXTRA_DIST = \
 	LightDM-1.metadata \

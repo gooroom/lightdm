@@ -76,13 +76,17 @@ def request_cb (channel, condition):
 
     r = '%s START-SESSION' % greeter_id
     if request == r:
-        if not greeter.start_session_sync (None):
-            status_notify ('%s SESSION-FAILED' % greeter_id)
+        try:
+            greeter.start_session_sync (None)
+        except GLib.Error as e:
+            status_notify ('%s SESSION-FAILED ERROR=%s' % (greeter_id, e.message))
 
     r = '%s START-SESSION SESSION=' % greeter_id
     if request.startswith (r):
-        if not greeter.start_session_sync (request[len(r):]):
-            status_notify ('%s SESSION-FAILED' % greeter_id)
+        try:
+            greeter.start_session_sync (request[len(r):])
+        except GLib.Error as e:
+            status_notify ('%s SESSION-FAILED ERROR=%s' % (greeter_id, e.message))
 
     r = '%s LOG-USER-LIST-LENGTH' % greeter_id
     if request == r:
@@ -99,6 +103,12 @@ def request_cb (channel, condition):
         users = LightDM.UserList.get_instance ().get_users ();
         for user in users:
             status_notify ('%s LOG-USER USERNAME=%s' % (greeter_id, user.get_name ()))
+
+    r = '%s LOG-SESSIONS' % greeter_id
+    if request == r:
+        sessions = LightDM.get_sessions ();
+        for session in sessions:
+            status_notify ('%s LOG-SESSION KEY=%s' % (greeter_id, session.get_key ()))
 
     r = '%s LOG-LAYOUT' % greeter_id
     if request == r:
@@ -200,17 +210,14 @@ def notify_hints (greeter):
         status_notify ('%s SHOW-MANUAL-LOGIN-HINT' % greeter_id)
     if not greeter.get_show_remote_login_hint ():
         status_notify ('%s SHOW-REMOTE-LOGIN-HINT=FALSE' % greeter_id)
-    timeout = greeter.get_autologin_timeout_hint ()
     if greeter.get_autologin_user_hint () is not None:
-        if timeout != 0:
-            status_notify ('%s AUTOLOGIN-USER USERNAME=%s TIMEOUT=%d' % (greeter_id, greeter.get_autologin_user_hint (), timeout))
-        else:
-            status_notify ('%s AUTOLOGIN-USER USERNAME=%s' % (greeter_id, greeter.get_autologin_user_hint ()))
-    elif greeter.get_autologin_guest_hint ():
-        if timeout != 0:
-            status_notify ('%s AUTOLOGIN-GUEST TIMEOUT=%d' % (greeter_id, timeout))
-        else:
-            status_notify ('%s AUTOLOGIN-GUEST' % greeter_id)
+        status_notify ('%s AUTOLOGIN-USER-HINT=%s' % (greeter_id, greeter.get_autologin_user_hint ()))
+    if greeter.get_autologin_session_hint () is not None:
+        status_notify ('%s AUTOLOGIN-SESSION-HINT=%s' % (greeter_id, greeter.get_autologin_session_hint ()))
+    if greeter.get_autologin_guest_hint ():
+        status_notify ('%s AUTOLOGIN-GUEST-HINT' % greeter_id)
+    if greeter.get_autologin_timeout_hint () != 0:
+        status_notify ('%s AUTOLOGIN-TIMEOUT-HINT=%s' % (greeter_id, greeter.get_autologin_timeout_hint ()))
 
 path = os.getenv ('LIGHTDM_TEST_ROOT') + '/.s'
 status_socket = socket.socket (socket.AF_UNIX, socket.SOCK_STREAM)
@@ -291,7 +298,9 @@ if log_user_changes:
     LightDM.UserList.get_instance ().connect ('user-removed', user_removed_cb)
 
 status_notify ('%s CONNECT-TO-DAEMON' % greeter_id)
-if not greeter.connect_to_daemon_sync ():
+try:
+    greeter.connect_to_daemon_sync ()
+except:
     status_notify ('%s FAIL-CONNECT-DAEMON' % greeter_id)
     exit (1)
 

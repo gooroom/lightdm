@@ -34,6 +34,8 @@ typedef struct
     GObjectClass parent_class;
 } SessionConfigClass;
 
+G_DEFINE_AUTOPTR_CLEANUP_FUNC (SessionConfig, g_object_unref)
+
 GType session_config_get_type (void);
 
 SessionConfig *session_config_new_from_file (const gchar *filename, const gchar *default_session_type, GError **error);
@@ -43,8 +45,6 @@ const gchar *session_config_get_command (SessionConfig *config);
 const gchar *session_config_get_session_type (SessionConfig *config);
 
 gchar **session_config_get_desktop_names (SessionConfig *config);
-
-const gchar *session_config_get_compositor_command (SessionConfig *config);
 
 gboolean session_config_get_allow_greeter (SessionConfig *config);
 

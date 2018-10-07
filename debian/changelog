@@ -1,11 +1,107 @@
-lightdm (1.18.3-1+grm1u1) unstable; urgency=medium
+lightdm (1.26.0-3) unstable; urgency=medium
 
-  [ jongkyung.woo ]
-  * [aa539074] Removed lightdm-gtk-greeter dependency in control
+  [ Cody Garver ]
+  * Backport upstream hide systemd dynamic users fix
 
-  [ Gooroom Autobuilder ]
+  [ Yves-Alexis Perez ]
+  * d/control: stop duplicating section when it's useless
+  * d/control: update standards version to 4.2.1
+  * d/control: fix casing for Gobject
+  * d/liblightdm-gobject-1-0.lintian-overrides dropped, now useless
 
- -- Gooroom Autobuilder <jenkins@gooroom.kr>  Wed, 14 Mar 2018 17:43:15 +0900
+ -- Yves-Alexis Perez <corsac@debian.org>  Sun, 07 Oct 2018 11:04:27 +0200
+
+lightdm (1.26.0-2) unstable; urgency=medium
+
+  * d/gbp.conf added, following DEP-14
+  * Upload to unstable.
+
+ -- Yves-Alexis Perez <corsac@debian.org>  Tue, 28 Aug 2018 11:29:22 +0200
+
+lightdm (1.26.0-1) experimental; urgency=medium
+
+  * Moved the package to git on salsa.debian.org
+  * Updated the maintainer address to debian-xfce@lists.debian.org
+  * d/control: drop Emanuele and Simon from uploaders, thanks to them!
+  * d/watch: track 1.26 branch (maintained until 2023)
+  * d/watch updated to track 1.26 branch on github
+  * New upstream version 1.26.0
+  * d/p/01_set-default-path refreshed for new release
+  * d/p/06_change-user-dirs refreshed for new upstream
+  * d/p/08_reset-SIGPIPE-before-exec refreshed for new release
+  * install polkit, DBus and AccountsService file in lightdm package
+  * d/rules: migrate to dh_missing
+  * liblightdm-gobject-1-0 symbols file updated for new release
+  * liblightdm-qt-3-0.symbols: merge generic Qt symbols
+  * liblightdm-qt-3-0.symbols: sort generic symbols and mark some as optional
+  * liblightdm-qt-3-0.symbols: reorder symbols
+  * debian/liblightdm-qt-3-0.symbols:
+    - add new symbols in 1.26
+    - fix syntax
+    - remove private callback symbols which shouldn't be exported
+    - remove hidden/non-exported symbols
+  * d/p/03_liblightdm-qt3-add-header-visibility added, fix symbol visibility
+  * d/rules: mark symbols hidden by default
+  * d/compat bumped to 10
+  * d/control: update dh build-dep to 10 and drop obsolete dh-systemd
+  * d/rules: drop systemd addon and parallel (useless with compat 10)
+  * d/control: add build-dep on yelp-tools
+  * lightdm.postinst: don't recursively chown /var/lib/lightdm
+  * d/liblightdm-qt5-3-0.symbols:
+    - remove symbols marked as private
+    - add symbols introduced in 1.26
+
+ -- Yves-Alexis Perez <corsac@debian.org>  Mon, 21 May 2018 17:37:09 +0200
+
+lightdm (1.18.3-5) experimental; urgency=medium
+
+  * debian/control:
+    - add liblightdm-qt5-3-0 and liblightdm-qt5-3-dev (packaging bits imported
+    from Ubuntu)                                                closes: #871840
+    - add build-dep on qtbase5-dev
+    - move libraries to section libs
+    - update standards version to 4.1.0
+    - replace dh-systemd build-dep by a newer version of debhelper
+  * debian/liblightdm-qt5-3-0.install and debian/liblightdm-qt5-3-dev.install
+    added to ship relevant files to Qt5 library and development packages
+  * debian/liblightdm-qt-dev.install:
+    - narrow installation path to only cover Qt4 library.
+  * debian/rules:
+    - explicitly enable qt5 library
+
+ -- Yves-Alexis Perez <corsac@debian.org>  Thu, 21 Sep 2017 21:09:40 +0200
+
+lightdm (1.18.3-4) unstable; urgency=medium
+
+  * debian/control:
+    - drop build-dep on libck-connector-dev and libdbus-glib-1-dev, thanks
+      Michael Biebl.                                            closes: #865037
+    - add depends on libx11-dev and libglib2.0-dev to liblightdm-gobject-dev
+      and drop libdbus-glib-1-dev, thanks again Michael.
+
+ -- Yves-Alexis Perez <corsac@debian.org>  Sat, 08 Jul 2017 16:26:27 +0200
+
+lightdm (1.18.3-3) unstable; urgency=medium
+
+  * debian/control:
+    - replace libgcrypt11-dev by libgcrypt20-dev.               closes: #864121
+    - update standards version to 4.0.0.
+    - move gir1.2-lightdm-1 to section introspection.
+    - add dependency on gir1.2-lightdm-1 to liblightdm-gobject-dev. 
+    - add dependency on ${gir:Depends} to gir1.2-lightdm-1. 
+
+ -- Yves-Alexis Perez <corsac@debian.org>  Sun, 18 Jun 2017 19:46:04 +0200
+
+lightdm (1.18.3-2) unstable; urgency=medium
+
+  * debian/lightdm.service:
+    - replace plymouth-quit.service since LightDM will quit plymouth by
+      itself, patch from Laurent Bigonville.                    closes: #854274
+  * debian/control: replace lsb-base build-dep by a dependency (in lightdm).
+  * debian/lightdm.lintian-overrides: add overrides for the command with path
+    because we actually check for the command existence.
+
+ -- Yves-Alexis Perez <corsac@debian.org>  Sat, 25 Mar 2017 17:29:08 +0100
 
 lightdm (1.18.3-1) unstable; urgency=medium
 

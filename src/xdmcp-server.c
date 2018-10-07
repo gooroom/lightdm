@@ -51,7 +51,7 @@ struct XDMCPServerPrivate
     GHashTable *sessions;
 };
 
-G_DEFINE_TYPE (XDMCPServer, xdmcp_server, G_TYPE_OBJECT);
+G_DEFINE_TYPE (XDMCPServer, xdmcp_server, G_TYPE_OBJECT)
 
 /* Maximum number of milliseconds client will resend manage requests before giving up */
 #define MANAGE_TIMEOUT 126000
@@ -152,15 +152,13 @@ session_timeout_cb (XDMCPSession *session)
 static XDMCPSession *
 add_session (XDMCPServer *server)
 {
-    XDMCPSession *session;
     guint16 id;
-
     do
     {
         id = g_random_int () & 0xFFFFFFFF;
     } while (g_hash_table_lookup (server->priv->sessions, GINT_TO_POINTER ((gint) id)));
 
-    session = xdmcp_session_new (id);
+    XDMCPSession *session = xdmcp_session_new (id);
     session->priv->server = server;
     g_hash_table_insert (server->priv->sessions, GINT_TO_POINTER ((gint) id), g_object_ref (session));
     session->priv->inactive_timeout = g_timeout_add (MANAGE_TIMEOUT, (GSourceFunc) session_timeout_cb, session);
@@ -177,37 +175,26 @@ get_session (XDMCPServer *server, guint16 id)
 static gchar *
 socket_address_to_string (GSocketAddress *address)
 {
-    gchar *inet_text, *text;
-
-    inet_text = g_inet_address_to_string (g_inet_socket_address_get_address (G_INET_SOCKET_ADDRESS (address)));
-    text = g_strdup_printf ("%s:%d", inet_text, g_inet_socket_address_get_port (G_INET_SOCKET_ADDRESS (address)));
-    g_free (inet_text);
-
-    return text;
+    g_autofree gchar *inet_text = g_inet_address_to_string (g_inet_socket_address_get_address (G_INET_SOCKET_ADDRESS (address)));
+    return g_strdup_printf ("%s:%d", inet_text, g_inet_socket_address_get_port (G_INET_SOCKET_ADDRESS (address)));
 }
 
 static void
 send_packet (GSocket *socket, GSocketAddress *address, XDMCPPacket *packet)
 {
-    gchar *address_string;
-    guint8 data[1024];
-    gssize n_written;
-
-    address_string = socket_address_to_string (address);
+    g_autofree gchar *address_string = socket_address_to_string (address);
     g_debug ("Send %s to %s", xdmcp_packet_tostring (packet), address_string);
-    g_free (address_string);
 
-    n_written = xdmcp_packet_encode (packet, data, 1024);
+    guint8 data[1024];
+    gssize n_written = xdmcp_packet_encode (packet, data, 1024);
     if (n_written < 0)
-      g_critical ("Failed to encode XDMCP packet");
+        g_critical ("Failed to encode XDMCP packet");
     else
     {
-        GError *error = NULL;
-
+        g_autoptr(GError) error = NULL;
         g_socket_send_to (socket, address, (gchar *) data, n_written, NULL, &error);
         if (error)
             g_warning ("Error sending packet: %s", error->message);
-        g_clear_error (&error);
     }
 }
 
@@ -223,15 +210,12 @@ get_authentication_name (XDMCPServer *server)
 static void
 handle_query (XDMCPServer *server, GSocket *socket, GSocketAddress *address, gchar **authentication_names)
 {
-    XDMCPPacket *response;
-    gchar **i;
-    gchar *authentication_name = NULL;
-
     /* If no authentication requested and we are configured for none then allow */
+    const gchar *authentication_name = NULL;
     if (authentication_names[0] == NULL && server->priv->key == NULL)
         authentication_name = "";
 
-    for (i = authentication_names; *i; i++)
+    for (gchar **i = authentication_names; *i; i++)
     {
         if (strcmp (*i, get_authentication_name (server)) == 0 && server->priv->key != NULL)
         {
@@ -240,6 +224,7 @@ handle_query (XDMCPServer *server, GSocket *socket, GSocketAddress *address, gch
         }
     }
 
+    XDMCPPacket *response;
     if (authentication_name)
     {
         response = xdmcp_packet_alloc (XDMCP_Willing);
@@ -265,13 +250,7 @@ handle_query (XDMCPServer *server, GSocket *socket, GSocketAddress *address, gch
 static void
 handle_forward_query (XDMCPServer *server, GSocket *socket, GSocketAddress *address, XDMCPPacket *packet)
 {
-    GSocketFamily family;
-    GInetAddress *client_inet_address;
-    GSocketAddress *client_address;
-    gint i;
-    guint16 port = 0;
-
-    family = g_socket_get_family (socket);
+    GSocketFamily family = g_socket_get_family (socket);
     switch (family)
     {
     case G_SOCKET_FAMILY_IPV4:
@@ -293,16 +272,14 @@ handle_forward_query (XDMCPServer *server, GSocket *socket, GSocketAddress *addr
         return;
     }
 
-    for (i = 0; i < packet->ForwardQuery.client_port.length; i++)
+    guint16 port = 0;
+    for (int i = 0; i < packet->ForwardQuery.client_port.length; i++)
         port = port << 8 | packet->ForwardQuery.client_port.data[i];
 
-    client_inet_address = g_inet_address_new_from_bytes (packet->ForwardQuery.client_address.data, family);
-    client_address = g_inet_socket_address_new (client_inet_address, port);
-    g_object_unref (client_inet_address);
+    g_autoptr(GInetAddress) client_inet_address = g_inet_address_new_from_bytes (packet->ForwardQuery.client_address.data, family);
+    g_autoptr(GSocketAddress) client_address = g_inet_socket_address_new (client_inet_address, port);
 
     handle_query (server, socket, client_address, packet->ForwardQuery.authentication_names);
-
-    g_object_unref (client_address);
 }
 
 static guint8
@@ -320,12 +297,10 @@ atox (char c)
 static void
 decode_key (const gchar *key, guint8 *data)
 {
-    gint i;
-
     memset (data, 0, 8);
     if (strncmp (key, "0x", 2) == 0 || strncmp (key, "0X", 2) == 0)
     {
-        for (i = 0; i < 8; i++)
+        for (gint i = 0; i < 8; i++)
         {
             if (key[i*2] == '\0')
                 break;
@@ -337,7 +312,7 @@ decode_key (const gchar *key, guint8 *data)
     }
     else
     {
-        for (i = 1; i < 8 && key[i-1]; i++)
+        for (gint i = 1; i < 8 && key[i-1]; i++)
            data[i] = key[i-1];
     }
 }
@@ -369,23 +344,18 @@ compare_addresses (gconstpointer a, gconstpointer b, gpointer user_data)
     const AddrSortItem *item_a = a;
     const AddrSortItem *item_b = b;
     GInetAddress *source_address = user_data;
-    GSocketFamily family_a;
-    GSocketFamily family_b;
-    gboolean is_link_local;
 
     /* Prefer non link-local addresses */
-    is_link_local = g_inet_address_get_is_link_local (item_a->address);
+    gboolean is_link_local = g_inet_address_get_is_link_local (item_a->address);
     if (is_link_local != g_inet_address_get_is_link_local (item_b->address))
         return is_link_local ? 1 : -1;
 
     /* Prefer the source address family */
-    family_a = g_inet_address_get_family (item_a->address);
-    family_b = g_inet_address_get_family (item_b->address);
+    GSocketFamily family_a = g_inet_address_get_family (item_a->address);
+    GSocketFamily family_b = g_inet_address_get_family (item_b->address);
     if (family_a != family_b)
     {
-        GSocketFamily family;
-
-        family = g_inet_address_get_family (source_address);
+        GSocketFamily family = g_inet_address_get_family (source_address);
         if (family_a == family)
             return -1;
         if (family_b == family)
@@ -410,20 +380,16 @@ compare_addresses (gconstpointer a, gconstpointer b, gpointer user_data)
 static XDMCPConnection *
 choose_connection (XDMCPPacket *packet, GInetAddress *source_address)
 {
-    gsize addresses_length, i;
-    GArray *addresses;
-    gssize index = -1;
-    AddrSortItem addr;
-
-    addresses_length = packet->Request.n_connections;
+    gsize addresses_length = packet->Request.n_connections;
     if (addresses_length == 0)
         return NULL;
 
-    addresses = g_array_sized_new (FALSE, FALSE, sizeof addr, addresses_length);
+    AddrSortItem addr;
+    GArray *addresses = g_array_sized_new (FALSE, FALSE, sizeof addr, addresses_length);
     if (!addresses)
         return NULL;
 
-    for (i = 0; i < addresses_length; i++)
+    for (gsize i = 0; i < addresses_length; i++)
     {
         addr.address = connection_to_address (&packet->Request.connections[i]);
         if (addr.address)
@@ -437,13 +403,14 @@ choose_connection (XDMCPPacket *packet, GInetAddress *source_address)
     g_array_sort_with_data (addresses, compare_addresses, source_address);
 
     /* Use the best address */
+    gssize index = -1;
     if (addresses->len)
         index = g_array_index (addresses, AddrSortItem, 0).index;
 
     /* Free the local sort array and items */
-    for (i = 0; i < addresses->len; i++)
+    for (gsize i = 0; i < addresses->len; i++)
         g_object_unref (g_array_index (addresses, AddrSortItem, i).address);
-    g_object_unref (addresses);
+    g_array_unref (addresses);
 
     return index >= 0 ? &packet->Request.connections[index] : NULL;
 }
@@ -451,27 +418,22 @@ choose_connection (XDMCPPacket *packet, GInetAddress *source_address)
 static gboolean
 has_string (gchar **list, const gchar *text)
 {
-    gchar **i;
-
-    for (i = list; *i; i++)
+    for (gchar **i = list; *i; i++)
         if (strcmp (*i, text) == 0)
             return TRUE;
-  
+
     return FALSE;
 }
 
 static void
 handle_request (XDMCPServer *server, GSocket *socket, GSocketAddress *address, XDMCPPacket *packet)
 {
-    XDMCPPacket *response;
-    XDMCPSession *session;
-    gchar *authentication_name = NULL, *decline_status = NULL, *authorization_name, *display_number;
-    guint8 *authentication_data = NULL, *authorization_data = NULL, *session_authorization_data = NULL;
-    gsize authentication_data_length = 0, authorization_data_length = 0, session_authorization_data_length = 0;
-    XDMCPConnection *connection;
-    XdmAuthKeyRec rho;
-
     /* Check authentication */
+    g_autofree gchar *authentication_name = NULL;
+    g_autofree guint8 *authentication_data = NULL;
+    gsize authentication_data_length = 0;
+    g_autofree gchar *decline_status = NULL;
+    XdmAuthKeyRec rho;
     if (strcmp (packet->Request.authentication_name, "") == 0)
     {
         if (!server->priv->key)
@@ -497,7 +459,7 @@ handle_request (XDMCPServer *server, GSocket *socket, GSocketAddress *address, X
             authentication_name = g_strdup ("XDM-AUTHENTICATION-1");
             authentication_data = g_malloc (sizeof (guint8) * 8);
             authentication_data_length = 8;
-    
+
             XdmcpUnwrap (input, key, rho.data, authentication_data_length);
             XdmcpIncrementKey (&rho);
             XdmcpWrap (rho.data, key, authentication_data, authentication_data_length);
@@ -519,7 +481,7 @@ handle_request (XDMCPServer *server, GSocket *socket, GSocketAddress *address, X
     }
 
     /* Choose an address to connect back on */
-    connection = choose_connection (packet, g_inet_socket_address_get_address (G_INET_SOCKET_ADDRESS (address)));
+    XDMCPConnection *connection = choose_connection (packet, g_inet_socket_address_get_address (G_INET_SOCKET_ADDRESS (address)));
     if (!connection && !decline_status)
         decline_status = g_strdup ("No valid address found");
 
@@ -529,10 +491,10 @@ handle_request (XDMCPServer *server, GSocket *socket, GSocketAddress *address, X
     /* Decline if request was not valid */
     if (decline_status)
     {
-        response = xdmcp_packet_alloc (XDMCP_Decline);
-        response->Decline.status = decline_status;
-        response->Decline.authentication_name = authentication_name;
-        response->Decline.authentication_data.data = authentication_data;
+        XDMCPPacket *response = xdmcp_packet_alloc (XDMCP_Decline);
+        response->Decline.status = g_steal_pointer (&decline_status);
+        response->Decline.authentication_name = g_steal_pointer (&authentication_name);
+        response->Decline.authentication_data.data = g_steal_pointer (&authentication_data);
         response->Decline.authentication_data.length = authentication_data_length;
         send_packet (socket, address, response);
         xdmcp_packet_free (response);
@@ -540,18 +502,22 @@ handle_request (XDMCPServer *server, GSocket *socket, GSocketAddress *address, X
     }
 
     /* Generate authorization data */
+    g_autofree gchar *authorization_name = NULL;
+    g_autofree guint8 *authorization_data = NULL;
+    gsize authorization_data_length = 0;
+    g_autofree guint8 *session_authorization_data = NULL;
+    gsize session_authorization_data_length = 0;
     if (server->priv->key)
     {
-        gint i;
-        guint8 key[8], session_key[8];
-
         /* Setup key */
+        guint8 key[8];
         decode_key (server->priv->key, key);
 
         /* Generate a private session key */
         // FIXME: Pick a good DES key?
+        guint8 session_key[8];
         session_key[0] = 0;
-        for (i = 1; i < 8; i++)
+        for (gint i = 1; i < 8; i++)
             session_key[i] = g_random_int () & 0xFF;
 
         /* Encrypt the session key and send it to the server */
@@ -569,23 +535,19 @@ handle_request (XDMCPServer *server, GSocket *socket, GSocketAddress *address, X
     }
     else
     {
-        XAuthority *auth;
-
         /* Data is the cookie */
-        auth = x_authority_new_cookie (XAUTH_FAMILY_WILD, NULL, 0, "");
+        g_autoptr(XAuthority) auth = x_authority_new_cookie (XAUTH_FAMILY_WILD, NULL, 0, "");
         authorization_data = x_authority_copy_authorization_data (auth);
         authorization_data_length = x_authority_get_authorization_data_length (auth);
         authorization_name = g_strdup ("MIT-MAGIC-COOKIE-1");
         session_authorization_data = x_authority_copy_authorization_data (auth);
         session_authorization_data_length = x_authority_get_authorization_data_length (auth);
-
-        g_object_unref (auth);
     }
 
-    session = add_session (server);
+    XDMCPSession *session = add_session (server);
     session->priv->address = connection_to_address (connection);
     session->priv->display_number = packet->Request.display_number;
-    display_number = g_strdup_printf ("%d", packet->Request.display_number);
+    g_autofree gchar *display_number = g_strdup_printf ("%d", packet->Request.display_number);
 
     /* We need to check if this is the loopback address and set the authority
      * for a local connection if this is so as XCB treats "127.0.0.1" as local
@@ -611,15 +573,14 @@ handle_request (XDMCPServer *server, GSocket *socket, GSocketAddress *address, X
                                                     authorization_name,
                                                     session_authorization_data,
                                                     session_authorization_data_length);
-    g_free (display_number);
 
-    response = xdmcp_packet_alloc (XDMCP_Accept);
+    XDMCPPacket *response = xdmcp_packet_alloc (XDMCP_Accept);
     response->Accept.session_id = xdmcp_session_get_id (session);
-    response->Accept.authentication_name = authentication_name;
-    response->Accept.authentication_data.data = authentication_data;
+    response->Accept.authentication_name = g_steal_pointer (&authentication_name);
+    response->Accept.authentication_data.data = g_steal_pointer (&authentication_data);
     response->Accept.authentication_data.length = authentication_data_length;
-    response->Accept.authorization_name = authorization_name;
-    response->Accept.authorization_data.data = authorization_data;
+    response->Accept.authorization_name = g_steal_pointer (&authorization_name);
+    response->Accept.authorization_data.data = g_steal_pointer (&authorization_data);
     response->Accept.authorization_data.length = authorization_data_length;
     send_packet (socket, address, response);
     xdmcp_packet_free (response);
@@ -628,19 +589,13 @@ handle_request (XDMCPServer *server, GSocket *socket, GSocketAddress *address, X
 static void
 handle_manage (XDMCPServer *server, GSocket *socket, GSocketAddress *address, XDMCPPacket *packet)
 {
-    XDMCPSession *session;
-    gboolean result;
-
-    session = get_session (server, packet->Manage.session_id);
+    XDMCPSession *session = get_session (server, packet->Manage.session_id);
     if (!session)
     {
-        XDMCPPacket *response;
-
-        response = xdmcp_packet_alloc (XDMCP_Refuse);
+        XDMCPPacket *response = xdmcp_packet_alloc (XDMCP_Refuse);
         response->Refuse.session_id = packet->Manage.session_id;
         send_packet (socket, address, response);
         xdmcp_packet_free (response);
-
         return;
     }
 
@@ -667,6 +622,7 @@ handle_manage (XDMCPServer *server, GSocket *socket, GSocketAddress *address, XD
 
     session->priv->display_class = g_strdup (packet->Manage.display_class);
 
+    gboolean result = FALSE;
     g_signal_emit (server, signals[NEW_SESSION], 0, session, &result);
     if (result)
     {
@@ -711,13 +667,12 @@ read_cb (GSocket *socket, GIOCondition condition, XDMCPServer *server)
 {
     GSocketAddress *address;
     gchar data[1024];
-    GError *error = NULL;
+    g_autoptr(GError) error = NULL;
     gssize n_read;
 
     n_read = g_socket_receive_from (socket, &address, data, 1024, NULL, &error);
     if (error)
         g_warning ("Failed to read from XDMCP socket: %s", error->message);
-    g_clear_error (&error);
 
     if (n_read > 0)
     {
@@ -726,13 +681,12 @@ read_cb (GSocket *socket, GIOCondition condition, XDMCPServer *server)
         packet = xdmcp_packet_decode ((guint8 *)data, n_read);
         if (packet)
         {
-            gchar *packet_string, *address_string;
+            g_autofree gchar *packet_string = NULL;
+            g_autofree gchar *address_string = NULL;
 
             packet_string = xdmcp_packet_tostring (packet);
             address_string = socket_address_to_string (address);
             g_debug ("Got %s from %s", packet_string, address_string);
-            g_free (packet_string);
-            g_free (address_string);
 
             switch (packet->opcode)
             {
@@ -768,24 +722,21 @@ read_cb (GSocket *socket, GIOCondition condition, XDMCPServer *server)
 static GSocket *
 open_udp_socket (GSocketFamily family, guint port, const gchar *listen_address, GError **error)
 {
-    GSocket *socket;
-    GSocketAddress *address;
+    g_autoptr(GSocket) socket = NULL;
+    g_autoptr(GSocketAddress) address = NULL;
     gboolean result;
 
     socket = g_socket_new (family, G_SOCKET_TYPE_DATAGRAM, G_SOCKET_PROTOCOL_UDP, error);
     if (!socket)
         return NULL;
 
-    if (listen_address) 
+    if (listen_address)
     {
         GList *addresses;
 
         addresses = g_resolver_lookup_by_name (g_resolver_get_default (), listen_address, NULL, error);
         if (!addresses)
-        {
-            g_object_unref (socket);
             return NULL;
-        }
         address = g_inet_socket_address_new (addresses->data, port);
         g_resolver_free_addresses (addresses);
     }
@@ -793,42 +744,36 @@ open_udp_socket (GSocketFamily family, guint port, const gchar *listen_address, 
         address = g_inet_socket_address_new (g_inet_address_new_any (family), port);
     result = g_socket_bind (socket, address, TRUE, error);
     if (!result)
-    {
-        g_object_unref (socket);
         return NULL;
-    }
 
-    return socket;
+    return g_steal_pointer (&socket);
 }
 
 gboolean
 xdmcp_server_start (XDMCPServer *server)
 {
-    GSource *source;
-    GError *error = NULL;
-
     g_return_val_if_fail (server != NULL, FALSE);
 
-    server->priv->socket = open_udp_socket (G_SOCKET_FAMILY_IPV4, server->priv->port, server->priv->listen_address, &error);
-    if (error)
-        g_warning ("Failed to create IPv4 XDMCP socket: %s", error->message);
-    g_clear_error (&error);
+    g_autoptr(GError) ipv4_error = NULL;
+    server->priv->socket = open_udp_socket (G_SOCKET_FAMILY_IPV4, server->priv->port, server->priv->listen_address, &ipv4_error);
+    if (ipv4_error)
+        g_warning ("Failed to create IPv4 XDMCP socket: %s", ipv4_error->message);
 
     if (server->priv->socket)
     {
-        source = g_socket_create_source (server->priv->socket, G_IO_IN, NULL);
+        GSource *source = g_socket_create_source (server->priv->socket, G_IO_IN, NULL);
         g_source_set_callback (source, (GSourceFunc) read_cb, server, NULL);
         g_source_attach (source, NULL);
     }
 
-    server->priv->socket6 = open_udp_socket (G_SOCKET_FAMILY_IPV6, server->priv->port, server->priv->listen_address, &error);
-    if (error)
-        g_warning ("Failed to create IPv6 XDMCP socket: %s", error->message);
-    g_clear_error (&error);
+    g_autoptr(GError) ipv6_error = NULL;
+    server->priv->socket6 = open_udp_socket (G_SOCKET_FAMILY_IPV6, server->priv->port, server->priv->listen_address, &ipv6_error);
+    if (ipv6_error)
+        g_warning ("Failed to create IPv6 XDMCP socket: %s", ipv6_error->message);
 
     if (server->priv->socket6)
     {
-        source = g_socket_create_source (server->priv->socket6, G_IO_IN, NULL);
+        GSource *source = g_socket_create_source (server->priv->socket6, G_IO_IN, NULL);
         g_source_set_callback (source, (GSourceFunc) read_cb, server, NULL);
         g_source_attach (source, NULL);
     }
@@ -857,11 +802,11 @@ xdmcp_server_finalize (GObject *object)
 
     g_clear_object (&self->priv->socket);
     g_clear_object (&self->priv->socket6);
-    g_free (self->priv->listen_address);
-    g_free (self->priv->hostname);
-    g_free (self->priv->status);
-    g_free (self->priv->key);
-    g_hash_table_unref (self->priv->sessions);
+    g_clear_pointer (&self->priv->listen_address, g_free);
+    g_clear_pointer (&self->priv->hostname, g_free);
+    g_clear_pointer (&self->priv->status, g_free);
+    g_clear_pointer (&self->priv->key, g_free);
+    g_clear_pointer (&self->priv->sessions, g_hash_table_unref);
 
     G_OBJECT_CLASS (xdmcp_server_parent_class)->finalize (object);
 }

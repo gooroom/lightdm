@@ -67,8 +67,6 @@ sigterm_cb (gpointer user_data)
 static void
 notify_hints (LightDMGreeter *greeter)
 {
-    int timeout = lightdm_greeter_get_autologin_timeout_hint (greeter);
-
     if (lightdm_greeter_get_select_user_hint (greeter))
         status_notify ("%s SELECT-USER-HINT USERNAME=%s", greeter_id, lightdm_greeter_get_select_user_hint (greeter));
     if (lightdm_greeter_get_select_guest_hint (greeter))
@@ -84,19 +82,13 @@ notify_hints (LightDMGreeter *greeter)
     if (!lightdm_greeter_get_show_remote_login_hint (greeter))
         status_notify ("%s SHOW-REMOTE-LOGIN-HINT=FALSE", greeter_id);
     if (lightdm_greeter_get_autologin_user_hint (greeter))
-    {
-        if (timeout != 0)
-            status_notify ("%s AUTOLOGIN-USER USERNAME=%s TIMEOUT=%d", greeter_id, lightdm_greeter_get_autologin_user_hint (greeter), timeout);
-        else
-            status_notify ("%s AUTOLOGIN-USER USERNAME=%s", greeter_id, lightdm_greeter_get_autologin_user_hint (greeter));
-    }
-    else if (lightdm_greeter_get_autologin_guest_hint (greeter))
-    {
-        if (timeout != 0)
-            status_notify ("%s AUTOLOGIN-GUEST TIMEOUT=%d", greeter_id, timeout);
-        else
-            status_notify ("%s AUTOLOGIN-GUEST", greeter_id);
-    }
+        status_notify ("%s AUTOLOGIN-USER-HINT=%s", greeter_id, lightdm_greeter_get_autologin_user_hint (greeter));
+    if (lightdm_greeter_get_autologin_guest_hint (greeter))
+        status_notify ("%s AUTOLOGIN-GUEST-HINT", greeter_id);
+    if (lightdm_greeter_get_autologin_session_hint (greeter))
+        status_notify ("%s AUTOLOGIN-SESSION-HINT=%s", greeter_id, lightdm_greeter_get_autologin_session_hint (greeter));
+    if (lightdm_greeter_get_autologin_timeout_hint (greeter) != 0)
+        status_notify ("%s AUTOLOGIN-TIMEOUT-HINT=%d", greeter_id, lightdm_greeter_get_autologin_timeout_hint (greeter));
 }
 
 static void
@@ -122,64 +114,56 @@ static void
 start_session_finished (GObject *object, GAsyncResult *result, gpointer data)
 {
     LightDMGreeter *greeter = LIGHTDM_GREETER (object);
-    GError *error = NULL;
+    g_autoptr(GError) error = NULL;
 
     if (!lightdm_greeter_start_session_finish (greeter, result, &error))
-        status_notify ("%s SESSION-FAILED", greeter_id);
-    g_clear_error (&error);
+        status_notify ("%s SESSION-FAILED ERROR=%s", greeter_id, error->message);
 }
 
 static void
 write_shared_data_finished (GObject *object, GAsyncResult *result, gpointer data)
 {
     LightDMGreeter *greeter = LIGHTDM_GREETER (object);
-    gchar *dir, *path, *test_data;
-    FILE *f;
+    g_autofree gchar *test_data = data;
 
-    dir = lightdm_greeter_ensure_shared_data_dir_finish (greeter, result);
+    g_autoptr(GError) error = NULL;
+    g_autofree gchar *dir = lightdm_greeter_ensure_shared_data_dir_finish (greeter, result, &error);
     if (!dir)
     {
-        status_notify ("%s WRITE-SHARED-DATA ERROR=NO_SHARED_DIR", greeter_id);
+        status_notify ("%s WRITE-SHARED-DATA ERROR=%s", greeter_id, error->message);
         return;
     }
 
-    path = g_build_filename (dir, "data", NULL);
-    test_data = data;
+    g_autofree gchar *path = g_build_filename (dir, "data", NULL);
+    FILE *f;
     if (!(f = fopen (path, "w")) || fprintf (f, "%s", test_data) < 0)
         status_notify ("%s WRITE-SHARED-DATA ERROR=%s", greeter_id, strerror (errno));
     else
         status_notify ("%s WRITE-SHARED-DATA RESULT=TRUE", greeter_id);
-    g_free (test_data);
 
     if (f)
         fclose (f);
-    g_free (path);
-    g_free (dir);
 }
 
 static void
 read_shared_data_finished (GObject *object, GAsyncResult *result, gpointer data)
 {
     LightDMGreeter *greeter = LIGHTDM_GREETER (object);
-    gchar *dir, *path;
-    gchar *contents = NULL;
-    GError *error = NULL;
 
-    dir = lightdm_greeter_ensure_shared_data_dir_finish (greeter, result);
+    g_autoptr(GError) error = NULL;
+    g_autofree gchar *dir = lightdm_greeter_ensure_shared_data_dir_finish (greeter, result, &error);
     if (!dir)
     {
-        status_notify ("%s READ-SHARED-DATA ERROR=NO_SHARED_DIR", greeter_id);
+        status_notify ("%s READ-SHARED-DATA ERROR=%s", greeter_id, error->message);
         return;
     }
 
-    path = g_build_filename (dir, "data", NULL);
+    g_autofree gchar *path = g_build_filename (dir, "data", NULL);
+    g_autofree gchar *contents = NULL;
     if (g_file_get_contents (path, &contents, NULL, &error))
         status_notify ("%s READ-SHARED-DATA DATA=%s", greeter_id, contents);
     else
         status_notify ("%s READ-SHARED-DATA ERROR=%s", greeter_id, error->message);
-    g_free (path);
-    g_free (contents);
-    g_clear_error (&error);
 }
 
 static void
@@ -195,22 +179,46 @@ request_cb (const gchar *name, GHashTable *params)
         kill (getpid (), SIGSEGV);
 
     else if (strcmp (name, "AUTHENTICATE") == 0)
-        lightdm_greeter_authenticate (greeter, g_hash_table_lookup (params, "USERNAME"));
+    {
+        g_autoptr(GError) error = NULL;
+        if (!lightdm_greeter_authenticate (greeter, g_hash_table_lookup (params, "USERNAME"), &error))
+            status_notify ("%s FAIL-AUTHENTICATE ERROR=%s", greeter_id, error->message);
+    }
 
     else if (strcmp (name, "AUTHENTICATE-GUEST") == 0)
-        lightdm_greeter_authenticate_as_guest (greeter);
+    {
+        g_autoptr(GError) error = NULL;
+        if (!lightdm_greeter_authenticate_as_guest (greeter, &error))
+            status_notify ("%s FAIL-AUTHENTICATE-GUEST ERROR=%s", greeter_id, error->message);
+    }
 
     else if (strcmp (name, "AUTHENTICATE-AUTOLOGIN") == 0)
-        lightdm_greeter_authenticate_autologin (greeter);
+    {
+        g_autoptr(GError) error = NULL;
+        if (!lightdm_greeter_authenticate_autologin (greeter, &error))
+            status_notify ("%s FAIL-AUTHENTICATE-AUTOLOGIN ERROR=%s", greeter_id, error->message);
+    }
 
     else if (strcmp (name, "AUTHENTICATE-REMOTE") == 0)
-        lightdm_greeter_authenticate_remote (greeter, g_hash_table_lookup (params, "SESSION"), NULL);
+    {
+        g_autoptr(GError) error = NULL;
+        if (!lightdm_greeter_authenticate_remote (greeter, g_hash_table_lookup (params, "SESSION"), NULL, &error))
+            status_notify ("%s FAIL-AUTHENTICATE-REMOTE ERROR=%s", greeter_id, error->message);
+    }
 
     else if (strcmp (name, "RESPOND") == 0)
-        lightdm_greeter_respond (greeter, g_hash_table_lookup (params, "TEXT"));
+    {
+        g_autoptr(GError) error = NULL;
+        if (!lightdm_greeter_respond (greeter, g_hash_table_lookup (params, "TEXT"), &error))
+            status_notify ("%s FAIL-RESPOND ERROR=%s", greeter_id, error->message);
+    }
 
     else if (strcmp (name, "CANCEL-AUTHENTICATION") == 0)
-        lightdm_greeter_cancel_authentication (greeter);
+    {
+        g_autoptr(GError) error = NULL;
+        if (!lightdm_greeter_cancel_authentication (greeter, &error))
+            status_notify ("%s FAIL-CANCEL-AUTHENTICATION ERROR=%s", greeter_id, error->message);
+    }
 
     else if (strcmp (name, "START-SESSION") == 0)
         lightdm_greeter_start_session (greeter, g_hash_table_lookup (params, "SESSION"), NULL, start_session_finished, NULL);
@@ -232,11 +240,8 @@ request_cb (const gchar *name, GHashTable *params)
 
     else if (strcmp (name, "WATCH-USER") == 0)
     {
-        LightDMUser *user;
-        const gchar *username;
-
-        username = g_hash_table_lookup (params, "USERNAME");
-        user = lightdm_user_list_get_user_by_name (lightdm_user_list_get_instance (), username);
+        const gchar *username = g_hash_table_lookup (params, "USERNAME");
+        LightDMUser *user = lightdm_user_list_get_user_by_name (lightdm_user_list_get_instance (), username);
         if (user)
             g_signal_connect (user, LIGHTDM_SIGNAL_USER_CHANGED, G_CALLBACK (user_changed_cb), NULL);
         status_notify ("%s WATCH-USER USERNAME=%s", greeter_id, username);
@@ -244,15 +249,8 @@ request_cb (const gchar *name, GHashTable *params)
 
     else if (strcmp (name, "LOG-USER") == 0)
     {
-        LightDMUser *user;
-        const gchar *username, *image, *background, *language, *layout, *session;
-        const gchar * const * layouts;
-        gchar **fields = NULL;
-        gchar *layouts_text;
-        GString *status_text;
-        int i;
-
-        username = g_hash_table_lookup (params, "USERNAME");
+        const gchar *username = g_hash_table_lookup (params, "USERNAME");
+        g_auto(GStrv) fields = NULL;
         if (g_hash_table_lookup (params, "FIELDS"))
             fields = g_strsplit (g_hash_table_lookup (params, "FIELDS"), ",", -1);
         if (!fields)
@@ -261,18 +259,18 @@ request_cb (const gchar *name, GHashTable *params)
             fields[0] = NULL;
         }
 
-        user = lightdm_user_list_get_user_by_name (lightdm_user_list_get_instance (), username);
-        image = lightdm_user_get_image (user);
-        background = lightdm_user_get_background (user);
-        language = lightdm_user_get_language (user);
-        layout = lightdm_user_get_layout (user);
-        layouts = lightdm_user_get_layouts (user);
-        layouts_text = g_strjoinv (";", (gchar **) layouts);
-        session = lightdm_user_get_session (user);
+        LightDMUser *user = lightdm_user_list_get_user_by_name (lightdm_user_list_get_instance (), username);
+        const gchar *image = lightdm_user_get_image (user);
+        const gchar *background = lightdm_user_get_background (user);
+        const gchar *language = lightdm_user_get_language (user);
+        const gchar *layout = lightdm_user_get_layout (user);
+        const gchar * const * layouts = lightdm_user_get_layouts (user);
+        g_autofree gchar *layouts_text = g_strjoinv (";", (gchar **) layouts);
+        const gchar *session = lightdm_user_get_session (user);
 
-        status_text = g_string_new ("");
+        g_autoptr(GString) status_text = g_string_new ("");
         g_string_append_printf (status_text, "%s LOG-USER USERNAME=%s", greeter_id, username);
-        for (i = 0; fields[i]; i++)
+        for (int i = 0; fields[i]; i++)
         {
             if (strcmp (fields[i], "REAL-NAME") == 0)
                 g_string_append_printf (status_text, " REAL-NAME=%s", lightdm_user_get_real_name (user));
@@ -297,22 +295,27 @@ request_cb (const gchar *name, GHashTable *params)
             else if (strcmp (fields[i], "UID") == 0)
                 g_string_append_printf (status_text, " UID=%d", lightdm_user_get_uid (user));
         }
-        g_strfreev (fields);
-        g_free (layouts_text);
 
         status_notify ("%s", status_text->str);
-        g_string_free (status_text, TRUE);
     }
 
     else if (strcmp (name, "LOG-USER-LIST") == 0)
     {
-        GList *users, *link;
-
-        users = lightdm_user_list_get_users (lightdm_user_list_get_instance ());
-        for (link = users; link; link = link->next)
+        GList *users = lightdm_user_list_get_users (lightdm_user_list_get_instance ());
+        for (GList *link = users; link; link = link->next)
         {
             LightDMUser *user = link->data;
             status_notify ("%s LOG-USER USERNAME=%s", greeter_id, lightdm_user_get_name (user));
+        }
+    }
+
+    else if (strcmp (name, "LOG-SESSIONS") == 0)
+    {
+        GList *sessions = lightdm_get_sessions ();
+        for (GList *link = sessions; link; link = link->next)
+        {
+            LightDMSession *session = link->data;
+            status_notify ("%s LOG-SESSION KEY=%s", greeter_id, lightdm_session_get_key (session));
         }
     }
 
@@ -324,10 +327,9 @@ request_cb (const gchar *name, GHashTable *params)
 
     else if (strcmp (name, "SUSPEND") == 0)
     {
-        GError *error = NULL;
+        g_autoptr(GError) error = NULL;
         if (!lightdm_suspend (&error))
             status_notify ("%s FAIL-SUSPEND", greeter_id);
-        g_clear_error (&error);
     }
 
     else if (strcmp (name, "GET-CAN-HIBERNATE") == 0)
@@ -338,10 +340,9 @@ request_cb (const gchar *name, GHashTable *params)
 
     else if (strcmp (name, "HIBERNATE") == 0)
     {
-        GError *error = NULL;
+        g_autoptr(GError) error = NULL;
         if (!lightdm_hibernate (&error))
             status_notify ("%s FAIL-HIBERNATE", greeter_id);
-        g_clear_error (&error);
     }
 
     else if (strcmp (name, "GET-CAN-RESTART") == 0)
@@ -352,10 +353,9 @@ request_cb (const gchar *name, GHashTable *params)
 
     else if (strcmp (name, "RESTART") == 0)
     {
-        GError *error = NULL;
+        g_autoptr(GError) error = NULL;
         if (!lightdm_restart (&error))
             status_notify ("%s FAIL-RESTART", greeter_id);
-        g_clear_error (&error);
     }
 
     else if (strcmp (name, "GET-CAN-SHUTDOWN") == 0)
@@ -366,10 +366,9 @@ request_cb (const gchar *name, GHashTable *params)
 
     else if (strcmp (name, "SHUTDOWN") == 0)
     {
-        GError *error = NULL;
+        g_autoptr(GError) error = NULL;
         if (!lightdm_shutdown (&error))
             status_notify ("%s FAIL-SHUTDOWN", greeter_id);
-        g_clear_error (&error);
     }
 }
 
@@ -389,11 +388,11 @@ static void
 connect_finished (GObject *object, GAsyncResult *result, gpointer data)
 {
     LightDMGreeter *greeter = LIGHTDM_GREETER (object);
-    GError *error = NULL;
+    g_autoptr(GError) error = NULL;
 
     if (!lightdm_greeter_connect_to_daemon_finish (greeter, result, &error))
     {
-        status_notify ("%s FAIL-CONNECT-DAEMON", greeter_id);
+        status_notify ("%s FAIL-CONNECT-DAEMON ERROR=%s", greeter_id, error->message);
         exit_code = EXIT_FAILURE;
         g_main_loop_quit (loop);
         return;
@@ -407,22 +406,19 @@ connect_finished (GObject *object, GAsyncResult *result, gpointer data)
 int
 main (int argc, char **argv)
 {
-    gchar *display, *xdg_seat, *xdg_vtnr, *xdg_session_cookie, *xdg_session_class, *xdg_session_type, *mir_server_host_socket, *mir_vt, *mir_id, *path;
-    GString *status_text;
-
 #if !defined(GLIB_VERSION_2_36)
     g_type_init ();
 #endif
 
-    display = getenv ("DISPLAY");
-    xdg_seat = getenv ("XDG_SEAT");
-    xdg_vtnr = getenv ("XDG_VTNR");
-    xdg_session_cookie = getenv ("XDG_SESSION_COOKIE");
-    xdg_session_class = getenv ("XDG_SESSION_CLASS");
-    xdg_session_type = getenv ("XDG_SESSION_TYPE");  
-    mir_server_host_socket = getenv ("MIR_SERVER_HOST_SOCKET");
-    mir_vt = getenv ("MIR_SERVER_VT");
-    mir_id = getenv ("MIR_SERVER_NAME");
+    const gchar *display = getenv ("DISPLAY");
+    const gchar *xdg_seat = getenv ("XDG_SEAT");
+    const gchar *xdg_vtnr = getenv ("XDG_VTNR");
+    const gchar *xdg_session_cookie = getenv ("XDG_SESSION_COOKIE");
+    const gchar *xdg_session_class = getenv ("XDG_SESSION_CLASS");
+    const gchar *xdg_session_type = getenv ("XDG_SESSION_TYPE");
+    const gchar *mir_server_host_socket = getenv ("MIR_SERVER_HOST_SOCKET");
+    const gchar *mir_vt = getenv ("MIR_SERVER_VT");
+    const gchar *mir_id = getenv ("MIR_SERVER_NAME");
     if (display)
     {
         if (display[0] == ':')
@@ -446,7 +442,7 @@ main (int argc, char **argv)
 
     status_connect (request_cb, greeter_id);
 
-    status_text = g_string_new ("");
+    g_autoptr(GString) status_text = g_string_new ("");
     g_string_printf (status_text, "%s START", greeter_id);
     if (xdg_seat)
         g_string_append_printf (status_text, " XDG_SEAT=%s", xdg_seat);
@@ -459,14 +455,12 @@ main (int argc, char **argv)
     if (mir_vt > 0)
         g_string_append_printf (status_text, " MIR_SERVER_VT=%s", mir_vt);
     status_notify ("%s", status_text->str);
-    g_string_free (status_text, TRUE);
 
     config = g_key_file_new ();
-    path = g_build_filename (g_getenv ("LIGHTDM_TEST_ROOT"), "script", NULL);
+    g_autofree gchar *path = g_build_filename (g_getenv ("LIGHTDM_TEST_ROOT"), "script", NULL);
     g_key_file_load_from_file (config, path, G_KEY_FILE_NONE, NULL);
-    g_free (path);
 
-    if (g_key_file_has_key (config, "test-greeter-config", "return-value", NULL))
+    if (g_key_file_get_boolean (config, "test-greeter-config", "exit-on-startup", NULL))
     {
         int return_value = g_key_file_get_integer (config, "test-greeter-config", "return-value", NULL);
         status_notify ("%s EXIT CODE=%d", greeter_id, return_value);
@@ -506,6 +500,12 @@ main (int argc, char **argv)
     lightdm_greeter_connect_to_daemon (greeter, NULL, connect_finished, NULL);
 
     g_main_loop_run (loop);
+
+    if (g_key_file_has_key (config, "test-greeter-config", "return-value", NULL))
+    {
+        int return_value = g_key_file_get_integer (config, "test-greeter-config", "return-value", NULL);
+        return return_value;
+    }
 
     return exit_code;
 }

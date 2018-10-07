@@ -27,18 +27,16 @@ struct XServerXmirPrivate
     gchar *mir_socket;
 };
 
-G_DEFINE_TYPE (XServerXmir, x_server_xmir, X_SERVER_LOCAL_TYPE);
+G_DEFINE_TYPE (XServerXmir, x_server_xmir, X_SERVER_LOCAL_TYPE)
 
 static void
 compositor_ready_cb (UnitySystemCompositor *compositor, XServerXmir *server)
 {
-    gboolean result;
-
     if (!server->priv->waiting_for_compositor)
         return;
     server->priv->waiting_for_compositor = FALSE;
 
-    result = X_SERVER_LOCAL_CLASS (x_server_xmir_parent_class)->start (DISPLAY_SERVER (server));
+    gboolean result = X_SERVER_LOCAL_CLASS (x_server_xmir_parent_class)->start (DISPLAY_SERVER (server));
     if (!result)
         display_server_stop (DISPLAY_SERVER (server));
 }
@@ -52,19 +50,11 @@ compositor_stopped_cb (UnitySystemCompositor *compositor, XServerXmir *server)
 XServerXmir *
 x_server_xmir_new (UnitySystemCompositor *compositor)
 {
-    XServerXmir *server;
-    gchar *name;
-
-    server = g_object_new (X_SERVER_XMIR_TYPE, NULL);
+    XServerXmir *server = g_object_new (X_SERVER_XMIR_TYPE, NULL);
     x_server_local_set_command (X_SERVER_LOCAL (server), "Xmir");
     server->priv->compositor = g_object_ref (compositor);
     g_signal_connect (compositor, DISPLAY_SERVER_SIGNAL_READY, G_CALLBACK (compositor_ready_cb), server);
     g_signal_connect (compositor, DISPLAY_SERVER_SIGNAL_STOPPED, G_CALLBACK (compositor_stopped_cb), server);
-  
-    name = g_strdup_printf ("x-%d", x_server_get_display_number (X_SERVER (server)));
-    display_server_set_name (DISPLAY_SERVER (server), name);
-    g_free (name);
-
 
     return server;
 }
@@ -147,12 +137,10 @@ x_server_xmir_finalize (GObject *object)
     XServerXmir *self = X_SERVER_XMIR (object);
 
     if (self->priv->compositor)
-    {
         g_signal_handlers_disconnect_matched (self->priv->compositor, G_SIGNAL_MATCH_DATA, 0, 0, NULL, NULL, self);
-        g_object_unref (self->priv->compositor);
-    }
-    g_free (self->priv->mir_id);
-    g_free (self->priv->mir_socket);
+    g_clear_object (&self->priv->compositor);
+    g_clear_pointer (&self->priv->mir_id, g_free);
+    g_clear_pointer (&self->priv->mir_socket, g_free);
 
     G_OBJECT_CLASS (x_server_xmir_parent_class)->finalize (object);
 }

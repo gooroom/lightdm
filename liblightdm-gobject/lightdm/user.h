@@ -22,6 +22,9 @@ G_BEGIN_DECLS
 #define LIGHTDM_IS_USER_LIST_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE ((klass), LIGHTDM_TYPE_USER_LIST))
 #define LIGHTDM_USER_LIST_GET_CLASS(obj)  (G_TYPE_INSTANCE_GET_CLASS ((obj), LIGHTDM_TYPE_USER_LIST, LightDMUserListClass))
 
+typedef struct _LightDMUserList           LightDMUserList;
+typedef struct _LightDMUserListClass      LightDMUserListClass;
+
 #define LIGHTDM_TYPE_USER            (lightdm_user_get_type())
 #define LIGHTDM_USER(obj)            (G_TYPE_CHECK_INSTANCE_CAST ((obj), LIGHTDM_TYPE_USER, LightDMUser));
 #define LIGHTDM_USER_CLASS(klass)    (G_TYPE_CHECK_CLASS_CAST ((klass), LIGHTDM_TYPE_USER, LightDMUserClass))
@@ -29,20 +32,25 @@ G_BEGIN_DECLS
 #define LIGHTDM_IS_USER_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE ((klass), LIGHTDM_TYPE_USER))
 #define LIGHTDM_USER_GET_CLASS(obj)  (G_TYPE_INSTANCE_GET_CLASS ((obj), LIGHTDM_TYPE_USER, LightDMUserClass))
 
+typedef struct _LightDMUser          LightDMUser;
+typedef struct _LightDMUserClass     LightDMUserClass;
+
 #define LIGHTDM_USER_LIST_SIGNAL_USER_ADDED   "user-added"
 #define LIGHTDM_USER_LIST_SIGNAL_USER_CHANGED "user-changed"
 #define LIGHTDM_USER_LIST_SIGNAL_USER_REMOVED "user-removed"
 
 #define LIGHTDM_SIGNAL_USER_CHANGED "changed"
 
-typedef struct
+struct _LightDMUser
 {
     GObject parent_instance;
-} LightDMUser;
+};
 
-typedef struct
+struct _LightDMUserClass
 {
+    /*< private >*/
     GObjectClass parent_class;
+
     void (*changed)(LightDMUser *user);
 
     /* Reserved */
@@ -52,15 +60,16 @@ typedef struct
     void (*reserved4) (void);
     void (*reserved5) (void);
     void (*reserved6) (void);
-} LightDMUserClass;
+};
 
-typedef struct
+struct _LightDMUserList
 {
     GObject parent_instance;
-} LightDMUserList;
+};
 
-typedef struct
+struct _LightDMUserListClass
 {
+    /*< private >*/
     GObjectClass parent_class;
 
     void (*user_added)(LightDMUserList *user_list, LightDMUser *user);
@@ -74,7 +83,7 @@ typedef struct
     void (*reserved4) (void);
     void (*reserved5) (void);
     void (*reserved6) (void);
-} LightDMUserListClass;
+};
 
 #ifdef GLIB_VERSION_2_44
 typedef LightDMUser *LightDMUser_autoptr;

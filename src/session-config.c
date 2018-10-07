@@ -22,26 +22,19 @@ struct SessionConfigPrivate
     /* Command to run */
     gchar *command;
 
-    /* Compositor command to run (for type mir-container) */
-    gchar *compositor_command;
-
     /* TRUE if can run a greeter inside the session */
     gboolean allow_greeter;
 };
 
-G_DEFINE_TYPE (SessionConfig, session_config, G_TYPE_OBJECT);
+G_DEFINE_TYPE (SessionConfig, session_config, G_TYPE_OBJECT)
 
 SessionConfig *
 session_config_new_from_file (const gchar *filename, const gchar *default_session_type, GError **error)
 {
-    GKeyFile *desktop_file;
-    SessionConfig *config;
-    gchar *command;
-
-    desktop_file = g_key_file_new ();
+    g_autoptr(GKeyFile) desktop_file = g_key_file_new ();
     if (!g_key_file_load_from_file (desktop_file, filename, G_KEY_FILE_NONE, error))
         return NULL;
-    command = g_key_file_get_string (desktop_file, G_KEY_FILE_DESKTOP_GROUP, G_KEY_FILE_DESKTOP_KEY_EXEC, NULL);
+    g_autofree gchar *command = g_key_file_get_string (desktop_file, G_KEY_FILE_DESKTOP_GROUP, G_KEY_FILE_DESKTOP_KEY_EXEC, NULL);
     if (!command)
     {
         g_set_error (error,
@@ -51,8 +44,8 @@ session_config_new_from_file (const gchar *filename, const gchar *default_sessio
         return NULL;
     }
 
-    config = g_object_new (SESSION_CONFIG_TYPE, NULL);
-    config->priv->command = command;
+    g_autoptr(SessionConfig) config = g_object_new (SESSION_CONFIG_TYPE, NULL);
+    config->priv->command = g_steal_pointer (&command);
     config->priv->session_type = g_key_file_get_string (desktop_file, G_KEY_FILE_DESKTOP_GROUP, "X-LightDM-Session-Type", NULL);
     if (!config->priv->session_type)
         config->priv->session_type = g_strdup (default_session_type);
@@ -70,12 +63,9 @@ session_config_new_from_file (const gchar *filename, const gchar *default_sessio
             config->priv->desktop_names[1] = NULL;
         }
     }
-    config->priv->compositor_command = g_key_file_get_string (desktop_file, G_KEY_FILE_DESKTOP_GROUP, "X-LightDM-System-Compositor-Command", NULL);
     config->priv->allow_greeter = g_key_file_get_boolean (desktop_file, G_KEY_FILE_DESKTOP_GROUP, "X-LightDM-Allow-Greeter", NULL);
 
-    g_key_file_free (desktop_file);
-
-    return config;
+    return g_steal_pointer (&config);
 }
 
 const gchar *
@@ -99,13 +89,6 @@ session_config_get_desktop_names (SessionConfig *config)
     return config->priv->desktop_names;
 }
 
-const gchar *
-session_config_get_compositor_command (SessionConfig *config)
-{
-    g_return_val_if_fail (config != NULL, NULL);
-    return config->priv->compositor_command;
-}
-
 gboolean
 session_config_get_allow_greeter (SessionConfig *config)
 {
@@ -124,10 +107,9 @@ session_config_finalize (GObject *object)
 {
     SessionConfig *self = SESSION_CONFIG (object);
 
-    g_free (self->priv->session_type);
-    g_strfreev (self->priv->desktop_names);
-    g_free (self->priv->command);
-    g_free (self->priv->compositor_command);
+    g_clear_pointer (&self->priv->session_type, g_free);
+    g_clear_pointer (&self->priv->desktop_names, g_strfreev);
+    g_clear_pointer (&self->priv->command, g_free);
 
     G_OBJECT_CLASS (session_config_parent_class)->finalize (object);
 }
