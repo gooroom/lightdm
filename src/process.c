@@ -66,7 +66,7 @@ struct ProcessPrivate
     guint watch;
 };
 
-G_DEFINE_TYPE (Process, process, G_TYPE_OBJECT);
+G_DEFINE_TYPE (Process, process, G_TYPE_OBJECT)
 
 static Process *current_process = NULL;
 static GHashTable *processes = NULL;
@@ -176,41 +176,37 @@ process_watch_cb (GPid pid, gint status, gpointer data)
 gboolean
 process_start (Process *process, gboolean block)
 {
-    gint argc;
-    gchar **argv;
-    gchar **env_keys, **env_values;
-    guint i, env_length;
-    GList *keys, *link;
-    pid_t pid;
-    int log_fd = -1;
-    GError *error = NULL;
-
     g_return_val_if_fail (process != NULL, FALSE);
     g_return_val_if_fail (process->priv->command != NULL, FALSE);
     g_return_val_if_fail (process->priv->pid == 0, FALSE);
 
+    gint argc;
+    g_auto(GStrv) argv = NULL;
+    g_autoptr(GError) error = NULL;
     if (!g_shell_parse_argv (process->priv->command, &argc, &argv, &error))
     {
         g_warning ("Error parsing command %s: %s", process->priv->command, error->message);
         return FALSE;
     }
 
+    int log_fd = -1;
     if (process->priv->log_file)
         log_fd = log_file_open (process->priv->log_file, process->priv->log_mode);
 
     /* Work out variables to set */
-    env_length = g_hash_table_size (process->priv->env);
-    env_keys = g_malloc (sizeof (gchar *) * env_length);
-    env_values = g_malloc (sizeof (gchar *) * env_length);
-    keys = g_hash_table_get_keys (process->priv->env);
-    for (i = 0, link = keys; i < env_length; i++, link = link->next)
+    guint env_length = g_hash_table_size (process->priv->env);
+    g_autofree gchar **env_keys = g_malloc (sizeof (gchar *) * env_length);
+    g_autofree gchar **env_values = g_malloc (sizeof (gchar *) * env_length);
+    GList *keys = g_hash_table_get_keys (process->priv->env);
+    guint i = 0;
+    for (GList *link = keys; i < env_length; i++, link = link->next)
     {
         env_keys[i] = link->data;
         env_values[i] = g_hash_table_lookup (process->priv->env, env_keys[i]);
     }
     g_list_free (keys);
 
-    pid = fork ();
+    pid_t pid = fork ();
     if (pid == 0)
     {
         /* Do custom setup */
@@ -233,17 +229,17 @@ process_start (Process *process, gboolean block)
 #else
             environ = NULL;
 #endif
-        for (i = 0; i < env_length; i++)
+        for (guint i = 0; i < env_length; i++)
             setenv (env_keys[i], env_values[i], TRUE);
+
+        /* Reset SIGPIPE handler so the child has default behaviour (we disabled it at LightDM start) */
+        signal (SIGPIPE, SIG_DFL);
 
         execvp (argv[0], argv);
         _exit (EXIT_FAILURE);
     }
 
     close (log_fd);
-    g_strfreev (argv);
-    g_free (env_keys);
-    g_free (env_values);
 
     if (pid < 0)
     {
@@ -355,8 +351,8 @@ process_finalize (GObject *object)
     if (self->priv->pid > 0)
         g_hash_table_remove (processes, GINT_TO_POINTER (self->priv->pid));
 
-    g_free (self->priv->log_file);
-    g_free (self->priv->command);
+    g_clear_pointer (&self->priv->log_file, g_free);
+    g_clear_pointer (&self->priv->command, g_free);
     g_hash_table_unref (self->priv->env);
     if (self->priv->quit_timeout)
         g_source_remove (self->priv->quit_timeout);
@@ -386,11 +382,9 @@ signal_cb (int signum, siginfo_t *info, void *data)
 static gboolean
 handle_signal (GIOChannel *source, GIOCondition condition, gpointer data)
 {
+    errno = 0;
     int signo;
     pid_t pid;
-    Process *process;
-
-    errno = 0;
     if (read (signal_pipe[0], &signo, sizeof (int)) != sizeof (int) ||
         read (signal_pipe[0], &pid, sizeof (pid_t)) != sizeof (pid_t))
     {
@@ -400,7 +394,7 @@ handle_signal (GIOChannel *source, GIOCondition condition, gpointer data)
 
     g_debug ("Got signal %d from process %d", signo, pid);
 
-    process = g_hash_table_lookup (processes, GINT_TO_POINTER (pid));
+    Process *process = g_hash_table_lookup (processes, GINT_TO_POINTER (pid));
     if (process == NULL)
         process = process_get_current ();
     if (process)
@@ -455,10 +449,9 @@ process_class_init (ProcessClass *klass)
     g_io_add_watch (g_io_channel_unix_new (signal_pipe[0]), G_IO_IN, handle_signal, NULL);
     action.sa_sigaction = signal_cb;
     sigemptyset (&action.sa_mask);
-    action.sa_flags = SA_SIGINFO;
+    action.sa_flags = SA_SIGINFO | SA_RESTART;
     sigaction (SIGTERM, &action, NULL);
     sigaction (SIGINT, &action, NULL);
-    sigaction (SIGHUP, &action, NULL);
     sigaction (SIGUSR1, &action, NULL);
     sigaction (SIGUSR2, &action, NULL);
 }

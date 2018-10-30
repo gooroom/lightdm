@@ -39,17 +39,14 @@ xephyr_setup_cb (gpointer user_data)
 static void
 xephyr_signal_cb (int signum)
 {
-    gchar *path;
-    GVariant *result;
-    GError *error = NULL;
-
-    result = g_dbus_proxy_call_sync (dm_proxy,
-                                     "AddLocalXSeat",
-                                     g_variant_new ("(i)", xephyr_display_number),
-                                     G_DBUS_CALL_FLAGS_NONE,
-                                     -1,
-                                     NULL,
-                                     &error);
+    g_autoptr(GError) error = NULL;
+    g_autoptr(GVariant) result = g_dbus_proxy_call_sync (dm_proxy,
+                                                         "AddLocalXSeat",
+                                                         g_variant_new ("(i)", xephyr_display_number),
+                                                         G_DBUS_CALL_FLAGS_NONE,
+                                                         -1,
+                                                         NULL,
+                                                         &error);
     if (!result)
     {
         g_printerr ("Unable to add seat: %s\n", error->message);
@@ -63,6 +60,7 @@ xephyr_signal_cb (int signum)
         exit (EXIT_FAILURE);
     }
 
+    const gchar *path = NULL;
     g_variant_get (result, "(&o)", &path);
     g_print ("%s\n", path);
 
@@ -72,8 +70,6 @@ xephyr_signal_cb (int signum)
 static GDBusProxy *
 get_seat_proxy (void)
 {
-    GError *error = NULL;
-
     if (seat_proxy)
         return seat_proxy;
 
@@ -83,6 +79,7 @@ get_seat_proxy (void)
         exit (EXIT_FAILURE);
     }
 
+    g_autoptr(GError) error = NULL;
     seat_proxy = g_dbus_proxy_new_for_bus_sync (bus_type,
                                                 G_DBUS_PROXY_FLAGS_NONE,
                                                 NULL,
@@ -96,7 +93,6 @@ get_seat_proxy (void)
         g_printerr ("Unable to contact display manager: %s\n", error->message);
         exit (EXIT_FAILURE);
     }
-    g_clear_error (&error);
 
     return seat_proxy;
 }
@@ -104,16 +100,11 @@ get_seat_proxy (void)
 int
 main (int argc, char **argv)
 {
-    gchar *command;
-    gint n_options;
-    gchar **options;
-    GError *error = NULL;
-    gint arg_index;
-
 #if !defined(GLIB_VERSION_2_36)
     g_type_init ();
 #endif
 
+    gint arg_index;
     for (arg_index = 1; arg_index < argc; arg_index++)
     {
         gchar *arg = argv[arg_index];
@@ -165,6 +156,7 @@ main (int argc, char **argv)
         return EXIT_FAILURE;
     }
 
+    g_autoptr(GError) error = NULL;
     dm_proxy = g_dbus_proxy_new_for_bus_sync (bus_type,
                                               G_DBUS_PROXY_FLAGS_NONE,
                                               NULL,
@@ -178,12 +170,11 @@ main (int argc, char **argv)
         g_printerr ("Unable to contact display manager: %s\n", error->message);
         return EXIT_FAILURE;
     }
-    g_clear_error (&error);
 
-    command = argv[arg_index];
+    const gchar *command = argv[arg_index];
     arg_index++;
-    n_options = argc - arg_index;
-    options = argv + arg_index;
+    gint n_options = argc - arg_index;
+    gchar **options = argv + arg_index;
     if (strcmp (command, "switch-to-greeter") == 0)
     {
         if (n_options != 0)
@@ -208,8 +199,6 @@ main (int argc, char **argv)
     }
     else if (strcmp (command, "switch-to-user") == 0)
     {
-        gchar *username, *session = "";
-
         if (n_options < 1 || n_options > 2)
         {
             g_printerr ("Usage switch-to-user USERNAME [SESSION]\n");
@@ -217,7 +206,8 @@ main (int argc, char **argv)
             return EXIT_FAILURE;
         }
 
-        username = options[0];
+        const gchar *username = options[0];
+        const gchar *session = "";
         if (n_options == 2)
             session = options[1];
 
@@ -236,8 +226,6 @@ main (int argc, char **argv)
     }
     else if (strcmp (command, "switch-to-guest") == 0)
     {
-        gchar *session = "";
-
         if (n_options > 1)
         {
             g_printerr ("Usage switch-to-guest [SESSION]\n");
@@ -245,6 +233,7 @@ main (int argc, char **argv)
             return EXIT_FAILURE;
         }
 
+        const gchar *session = "";
         if (n_options == 1)
             session = options[0];
 
@@ -285,27 +274,20 @@ main (int argc, char **argv)
     }
     else if (strcmp (command, "list-seats") == 0)
     {
-        GVariant *seats;
-        GVariantIter *seat_iter;
-        gchar *seat_path;
-
         if (!g_dbus_proxy_get_name_owner (dm_proxy))
         {
             g_printerr ("Unable to contact display manager\n");
             return EXIT_FAILURE;
         }
-        seats = g_dbus_proxy_get_cached_property (dm_proxy, "Seats");
+        g_autoptr(GVariant) seats = g_dbus_proxy_get_cached_property (dm_proxy, "Seats");
 
+        g_autoptr(GVariantIter) seat_iter = NULL;
         g_variant_get (seats, "ao", &seat_iter);
+        gchar *seat_path;
         while (g_variant_iter_loop (seat_iter, "&o", &seat_path))
         {
             gchar *seat_name;
-            GDBusProxy *proxy;
-            gchar **property_names;
-            GVariant *sessions;
-            GVariantIter *session_iter;
-            gchar *session_path;
-            gint i;
+            g_autoptr(GDBusProxy) proxy = NULL;
 
             if (g_str_has_prefix (seat_path, "/org/freedesktop/DisplayManager/"))
                 seat_name = seat_path + strlen ("/org/freedesktop/DisplayManager/");
@@ -324,64 +306,54 @@ main (int argc, char **argv)
                 continue;
 
             g_print ("%s\n", seat_name);
-            property_names = g_dbus_proxy_get_cached_property_names (proxy);
-            for (i = 0; property_names[i]; i++)
+            g_auto(GStrv) property_names = g_dbus_proxy_get_cached_property_names (proxy);
+            for (int i = 0; property_names[i]; i++)
             {
-                GVariant *value;
-
                 if (strcmp (property_names[i], "Sessions") == 0)
                     continue;
 
-                value = g_dbus_proxy_get_cached_property (proxy, property_names[i]);
+                g_autoptr(GVariant) value = g_dbus_proxy_get_cached_property (proxy, property_names[i]);
                 g_print ("  %s=%s\n", property_names[i], g_variant_print (value, FALSE));
-                g_variant_unref (value);
             }
 
-            sessions = g_dbus_proxy_get_cached_property (proxy, "Sessions");
+            g_autoptr(GVariant) sessions = g_dbus_proxy_get_cached_property (proxy, "Sessions");
             if (!sessions)
                 continue;
 
+            g_autoptr(GVariantIter) session_iter = NULL;
             g_variant_get (sessions, "ao", &session_iter);
+            const gchar *session_path;
             while (g_variant_iter_loop (session_iter, "&o", &session_path))
             {
-                GDBusProxy *session_proxy;
-                gchar *session_name;
-
+                const gchar *session_name;
                 if (g_str_has_prefix (session_path, "/org/freedesktop/DisplayManager/"))
                     session_name = session_path + strlen ("/org/freedesktop/DisplayManager/");
                 else
                     session_name = session_path;
 
-                session_proxy = g_dbus_proxy_new_sync (g_dbus_proxy_get_connection (dm_proxy),
-                                                       G_DBUS_PROXY_FLAGS_NONE,
-                                                       NULL,
-                                                       "org.freedesktop.DisplayManager",
-                                                       session_path,
-                                                       "org.freedesktop.DisplayManager.Session",
-                                                       NULL,
-                                                       NULL);
+                g_autoptr(GDBusProxy) session_proxy = g_dbus_proxy_new_sync (g_dbus_proxy_get_connection (dm_proxy),
+                                                                             G_DBUS_PROXY_FLAGS_NONE,
+                                                                             NULL,
+                                                                             "org.freedesktop.DisplayManager",
+                                                                             session_path,
+                                                                             "org.freedesktop.DisplayManager.Session",
+                                                                             NULL,
+                                                                             NULL);
                 if (!session_proxy || !g_dbus_proxy_get_name_owner (session_proxy))
                     continue;
 
                 g_print ("  %s\n", session_name);
-                property_names = g_dbus_proxy_get_cached_property_names (session_proxy);
-                for (i = 0; property_names[i]; i++)
+                g_auto(GStrv) property_names = g_dbus_proxy_get_cached_property_names (session_proxy);
+                for (int i = 0; property_names[i]; i++)
                 {
-                    GVariant *value;
-
                     if (strcmp (property_names[i], "Seat") == 0)
                         continue;
 
-                    value = g_dbus_proxy_get_cached_property (session_proxy, property_names[i]);
+                    g_autoptr(GVariant) value = g_dbus_proxy_get_cached_property (session_proxy, property_names[i]);
                     g_print ("    %s=%s\n", property_names[i], g_variant_print (value, FALSE));
-                    g_variant_unref (value);
                 }
-
-                g_object_unref (session_proxy);
             }
             g_variant_iter_free (session_iter);
-
-            g_object_unref (proxy);
         }
         g_variant_iter_free (seat_iter);
 
@@ -389,17 +361,14 @@ main (int argc, char **argv)
     }
     else if (strcmp (command, "add-nested-seat") == 0)
     {
-        gchar *path, *xephyr_command, **xephyr_argv;
-        gchar *dimensions = NULL;
-        GMainLoop *loop;
-
-        path = g_find_program_in_path ("Xephyr");
+        const gchar *path = g_find_program_in_path ("Xephyr");
         if (!path)
         {
             g_printerr ("Unable to find Xephyr, please install it\n");
             return EXIT_FAILURE;
         }
 
+        const gchar *dimensions = NULL;
         if (n_options > 0)
         {
             /* Parse the given options */
@@ -423,12 +392,8 @@ main (int argc, char **argv)
         xephyr_display_number = 0;
         while (TRUE)
         {
-            gchar *lock_name;
-            gboolean has_lock;
-
-            lock_name = g_strdup_printf ("/tmp/.X%d-lock", xephyr_display_number);
-            has_lock = g_file_test (lock_name, G_FILE_TEST_EXISTS);
-            g_free (lock_name);
+            g_autofree gchar *lock_name = g_strdup_printf ("/tmp/.X%d-lock", xephyr_display_number);
+            gboolean has_lock = g_file_test (lock_name, G_FILE_TEST_EXISTS);
 
             if (has_lock)
                 xephyr_display_number++;
@@ -439,6 +404,7 @@ main (int argc, char **argv)
         /* Wait for signal from Xephyr is ready */
         signal (SIGUSR1, xephyr_signal_cb);
 
+        g_autofree gchar *xephyr_command;
         if (dimensions == NULL)
         {
             xephyr_command = g_strdup_printf ("Xephyr :%d ", xephyr_display_number);
@@ -451,6 +417,7 @@ main (int argc, char **argv)
         {
             xephyr_command = g_strdup_printf ("Xephyr :%d -screen %s", xephyr_display_number, dimensions);
         }
+        g_auto(GStrv) xephyr_argv = NULL;
         if (!g_shell_parse_argv (xephyr_command, NULL, &xephyr_argv, &error) ||
             !g_spawn_async (NULL, xephyr_argv, NULL,
                             G_SPAWN_DO_NOT_REAP_CHILD | G_SPAWN_SEARCH_PATH | G_SPAWN_STDOUT_TO_DEV_NULL | G_SPAWN_STDERR_TO_DEV_NULL,
@@ -460,18 +427,13 @@ main (int argc, char **argv)
             g_printerr ("Error running Xephyr: %s\n", error->message);
             exit (EXIT_FAILURE);
         }
-        g_clear_error (&error);
 
         /* Block until ready */
-        loop = g_main_loop_new (NULL, FALSE);
+        g_autoptr(GMainLoop) loop = g_main_loop_new (NULL, FALSE);
         g_main_loop_run (loop);
     }
     else if (strcmp (command, "add-local-x-seat") == 0)
     {
-        GVariant *result;
-        gint display_number;
-        const gchar *path;
-
         if (n_options != 1)
         {
             g_printerr ("Usage add-seat DISPLAY_NUMBER\n");
@@ -479,15 +441,14 @@ main (int argc, char **argv)
             return EXIT_FAILURE;
         }
 
-        display_number = atoi (options[0]);
-
-        result = g_dbus_proxy_call_sync (dm_proxy,
-                                         "AddLocalXSeat",
-                                         g_variant_new ("(i)", display_number),
-                                         G_DBUS_CALL_FLAGS_NONE,
-                                         -1,
-                                         NULL,
-                                         &error);
+        gint display_number = atoi (options[0]);
+        g_autoptr(GVariant) result = g_dbus_proxy_call_sync (dm_proxy,
+                                                             "AddLocalXSeat",
+                                                             g_variant_new ("(i)", display_number),
+                                                             G_DBUS_CALL_FLAGS_NONE,
+                                                             -1,
+                                                             NULL,
+                                                             &error);
         if (!result)
         {
             g_printerr ("Unable to add local X seat: %s\n", error->message);
@@ -500,6 +461,7 @@ main (int argc, char **argv)
             return EXIT_FAILURE;
         }
 
+        const gchar *path;
         g_variant_get (result, "(&o)", &path);
         g_print ("%s\n", path);
 
@@ -507,11 +469,6 @@ main (int argc, char **argv)
     }
     else if (strcmp (command, "add-seat") == 0)
     {
-        GVariant *result;
-        gchar *type, *path;
-        GVariantBuilder *properties;
-        gint i;
-
         if (n_options < 1)
         {
             g_printerr ("Usage add-seat TYPE [NAME=VALUE...]\n");
@@ -519,16 +476,14 @@ main (int argc, char **argv)
             return EXIT_FAILURE;
         }
 
-        type = options[0];
-        properties = g_variant_builder_new (G_VARIANT_TYPE ("a(ss)"));
+        const gchar *type = options[0];
+        g_autoptr(GVariantBuilder) properties = g_variant_builder_new (G_VARIANT_TYPE ("a(ss)"));
 
-        for (i = 1; i < n_options; i++)
+        for (gint i = 1; i < n_options; i++)
         {
-            gchar *property, *name, *value;
-
-            property = g_strdup (options[i]);
-            name = property;
-            value = strchr (property, '=');
+            g_autofree gchar *property = g_strdup (options[i]);
+            gchar *name = property;
+            gchar *value = strchr (property, '=');
             if (value)
             {
                 *value = '\0';
@@ -538,17 +493,15 @@ main (int argc, char **argv)
                value = "";
 
             g_variant_builder_add_value (properties, g_variant_new ("(ss)", name, value));
-            g_free (property);
         }
 
-        result = g_dbus_proxy_call_sync (dm_proxy,
-                                         "AddSeat",
-                                         g_variant_new ("(sa(ss))", type, properties),
-                                         G_DBUS_CALL_FLAGS_NONE,
-                                         -1,
-                                         NULL,
-                                         &error);
-        g_variant_builder_unref (properties);
+        g_autoptr(GVariant) result = g_dbus_proxy_call_sync (dm_proxy,
+                                                             "AddSeat",
+                                                             g_variant_new ("(sa(ss))", type, properties),
+                                                             G_DBUS_CALL_FLAGS_NONE,
+                                                             -1,
+                                                             NULL,
+                                                             &error);
         if (!result)
         {
             g_printerr ("Unable to add seat: %s\n", error->message);
@@ -561,6 +514,7 @@ main (int argc, char **argv)
             return EXIT_FAILURE;
         }
 
+        const gchar *path;
         g_variant_get (result, "(&o)", &path);
         g_print ("%s\n", path);
 

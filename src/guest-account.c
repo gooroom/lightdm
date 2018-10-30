@@ -18,18 +18,16 @@
 static gchar *
 get_setup_script (void)
 {
-    gchar *script;
     static gchar *setup_script = NULL;
 
     if (setup_script)
         return setup_script;
 
-    script = config_get_string (config_get_instance (), "LightDM", "guest-account-script");
+    g_autofree gchar *script = config_get_string (config_get_instance (), "LightDM", "guest-account-script");
     if (!script)
         return NULL;
 
     setup_script = g_find_program_in_path (script);
-    g_free (script);
 
     return setup_script;
 }
@@ -44,17 +42,14 @@ static gboolean
 run_script (const gchar *script, gchar **stdout_text, gint *exit_status, GError **error)
 {
     gint argc;
-    gchar **argv;
-    gboolean result;
-
+    g_auto(GStrv) argv = NULL;
     if (!g_shell_parse_argv (script, &argc, &argv, error))
         return FALSE;
 
-    result = g_spawn_sync (NULL, argv, NULL,
-                           G_SPAWN_SEARCH_PATH,
-                           NULL, NULL,
-                           stdout_text, NULL, exit_status, error);
-    g_strfreev (argv);
+    gboolean result = g_spawn_sync (NULL, argv, NULL,
+                                    G_SPAWN_SEARCH_PATH,
+                                    NULL, NULL,
+                                    stdout_text, NULL, exit_status, error);
 
     return result;
 }
@@ -62,65 +57,54 @@ run_script (const gchar *script, gchar **stdout_text, gint *exit_status, GError 
 gchar *
 guest_account_setup (void)
 {
-    gchar *command, *stdout_text, *username, **lines;
-    gint exit_status;
-    gboolean result;
-    GError *error = NULL;
-
-    command = g_strdup_printf ("%s add", get_setup_script ());
+    g_autofree gchar *command = g_strdup_printf ("%s add", get_setup_script ());
     g_debug ("Opening guest account with command '%s'", command);
-    result = run_script (command, &stdout_text, &exit_status, &error);
-    g_free (command);
+    g_autofree gchar *stdout_text = NULL;
+    gint exit_status;
+    g_autoptr(GError) error = NULL;
+    gboolean result = run_script (command, &stdout_text, &exit_status, &error);
     if (error)
         g_warning ("Error running guest account setup script '%s': %s", get_setup_script (), error->message);
-    g_clear_error (&error);
     if (!result)
         return NULL;
 
     if (exit_status != 0)
     {
         g_debug ("Guest account setup script returns %d: %s", exit_status, stdout_text);
-        g_free (stdout_text);
         return NULL;
     }
 
     /* Use the last line and trim whitespace */
-    lines = g_strsplit (g_strstrip (stdout_text), "\n", -1);
+    g_auto(GStrv) lines = g_strsplit (g_strstrip (stdout_text), "\n", -1);
+    g_autofree gchar *username = NULL;
     if (lines)
         username = g_strdup (g_strstrip (lines[g_strv_length (lines) - 1]));
     else
         username = g_strdup ("");
-    g_free (stdout_text);
 
     if (strcmp (username, "") == 0)
     {
-        g_free (username);
         g_debug ("Guest account setup script didn't return a username");
         return NULL;
     }
 
     g_debug ("Guest account %s setup", username);
 
-    return username;
+    return g_steal_pointer (&username);
 }
 
 void
 guest_account_cleanup (const gchar *username)
 {
-    gchar *command;
-    gboolean result;
-    gint exit_status;
-    GError *error = NULL;
-
-    command = g_strdup_printf ("%s remove %s", get_setup_script (), username);
+    g_autofree gchar *command = g_strdup_printf ("%s remove %s", get_setup_script (), username);
     g_debug ("Closing guest account %s with command '%s'", username, command);
 
-    result = run_script (command, NULL, &exit_status, &error);
-    g_free (command);
+    gint exit_status;
+    g_autoptr(GError) error = NULL;
+    gboolean result = run_script (command, NULL, &exit_status, &error);
 
     if (error)
         g_warning ("Error running guest account cleanup script '%s': %s", get_setup_script (), error->message);
-    g_clear_error (&error);
 
     if (result && exit_status != 0)
         g_debug ("Guest account cleanup script returns %d", exit_status);

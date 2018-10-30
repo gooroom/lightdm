@@ -14,9 +14,29 @@
 #include "configuration.h"
 #include "lightdm/session.h"
 
+/**
+ * SECTION:session
+ * @short_description: Choose the session to use
+ * @include: lightdm.h
+ *
+ * Object containing information about a session type. #LightDMSession objects are not created by the user, but provided by the #LightDMGreeter object.
+ */
+
+/**
+ * LightDMSession:
+ *
+ * #LightDMSession is an opaque data structure and can only be accessed
+ * using the provided functions.
+ */
+
+/**
+ * LightDMSessionClass:
+ *
+ * Class structure for #LightDMSession.
+ */
+
 enum {
-    PROP_0,
-    PROP_KEY,
+    PROP_KEY = 1,
     PROP_NAME,
     PROP_COMMENT
 };
@@ -29,7 +49,7 @@ typedef struct
     gchar *comment;
 } LightDMSessionPrivate;
 
-G_DEFINE_TYPE (LightDMSession, lightdm_session, G_TYPE_OBJECT);
+G_DEFINE_TYPE (LightDMSession, lightdm_session, G_TYPE_OBJECT)
 
 #define GET_PRIVATE(obj) G_TYPE_INSTANCE_GET_PRIVATE ((obj), LIGHTDM_TYPE_SESSION, LightDMSessionPrivate)
 
@@ -48,67 +68,50 @@ compare_session (gconstpointer a, gconstpointer b)
 static LightDMSession *
 load_session (GKeyFile *key_file, const gchar *key, const gchar *default_type)
 {
-    gchar *domain, *name, *type;
-    LightDMSession *session;
-    LightDMSessionPrivate *priv;
-    gchar *try_exec;
-
     if (g_key_file_get_boolean (key_file, G_KEY_FILE_DESKTOP_GROUP, G_KEY_FILE_DESKTOP_KEY_NO_DISPLAY, NULL) ||
         g_key_file_get_boolean (key_file, G_KEY_FILE_DESKTOP_GROUP, G_KEY_FILE_DESKTOP_KEY_HIDDEN, NULL))
         return NULL;
 
 #ifdef G_KEY_FILE_DESKTOP_KEY_GETTEXT_DOMAIN
-    domain = g_key_file_get_string (key_file, G_KEY_FILE_DESKTOP_GROUP, G_KEY_FILE_DESKTOP_KEY_GETTEXT_DOMAIN, NULL);
+    g_autofree gchar *domain = g_key_file_get_string (key_file, G_KEY_FILE_DESKTOP_GROUP, G_KEY_FILE_DESKTOP_KEY_GETTEXT_DOMAIN, NULL);
 #else
-    domain = g_key_file_get_string (key_file, G_KEY_FILE_DESKTOP_GROUP, "X-GNOME-Gettext-Domain", NULL);
+    g_autofree gchar *domain = g_key_file_get_string (key_file, G_KEY_FILE_DESKTOP_GROUP, "X-GNOME-Gettext-Domain", NULL);
 #endif
-    name = g_key_file_get_locale_string (key_file, G_KEY_FILE_DESKTOP_GROUP, G_KEY_FILE_DESKTOP_KEY_NAME, domain, NULL);
+    g_autofree gchar *name = g_key_file_get_locale_string (key_file, G_KEY_FILE_DESKTOP_GROUP, G_KEY_FILE_DESKTOP_KEY_NAME, domain, NULL);
     if (!name)
     {
         g_warning ("Ignoring session without name");
-        g_free (domain);
         return NULL;
     }
 
-    try_exec = g_key_file_get_locale_string (key_file, G_KEY_FILE_DESKTOP_GROUP, G_KEY_FILE_DESKTOP_KEY_TRY_EXEC, domain, NULL);
+    g_autofree gchar *try_exec = g_key_file_get_locale_string (key_file, G_KEY_FILE_DESKTOP_GROUP, G_KEY_FILE_DESKTOP_KEY_TRY_EXEC, domain, NULL);
     if (try_exec)
     {
-        gchar *full_path;
-
-        full_path = g_find_program_in_path (try_exec);
-        g_free (try_exec);
-
+        g_autofree gchar *full_path = g_find_program_in_path (try_exec);
         if (!full_path)
-        {
-            g_free (name);
-            g_free (domain);
             return NULL;
-        }
-        g_free (full_path);
     }
 
-    type = g_key_file_get_string (key_file, G_KEY_FILE_DESKTOP_GROUP, "X-LightDM-Session-Type", NULL);
+    g_autofree gchar *type = g_key_file_get_string (key_file, G_KEY_FILE_DESKTOP_GROUP, "X-LightDM-Session-Type", NULL);
     if (!type)
         type = strdup (default_type);
 
-    session = g_object_new (LIGHTDM_TYPE_SESSION, NULL);
-    priv = GET_PRIVATE (session);
+    LightDMSession *session = g_object_new (LIGHTDM_TYPE_SESSION, NULL);
+    LightDMSessionPrivate *priv = GET_PRIVATE (session);
 
     g_free (priv->key);
     priv->key = g_strdup (key);
 
     g_free (priv->type);
-    priv->type = type;
+    priv->type = g_steal_pointer (&type);
 
     g_free (priv->name);
-    priv->name = name;
+    priv->name = g_steal_pointer (&name);
 
     g_free (priv->comment);
     priv->comment = g_key_file_get_locale_string (key_file, G_KEY_FILE_DESKTOP_GROUP, G_KEY_FILE_DESKTOP_KEY_COMMENT, domain, NULL);
     if (!priv->comment)
         priv->comment = g_strdup ("");
-
-    g_free (domain);
 
     return session;
 }
@@ -116,45 +119,34 @@ load_session (GKeyFile *key_file, const gchar *key, const gchar *default_type)
 static GList *
 load_sessions_dir (GList *sessions, const gchar *sessions_dir, const gchar *default_type)
 {
-    GDir *directory;
-    GError *error = NULL;
-
-    directory = g_dir_open (sessions_dir, 0, &error);
+    g_autoptr(GError) error = NULL;
+    GDir *directory = g_dir_open (sessions_dir, 0, &error);
     if (error && !g_error_matches (error, G_FILE_ERROR, G_FILE_ERROR_NOENT))
         g_warning ("Failed to open sessions directory: %s", error->message);
-    g_clear_error (&error);
     if (!directory)
         return sessions;
 
     while (TRUE)
     {
-        const gchar *filename;
-        gchar *path;
-        GKeyFile *key_file;
-        gboolean result;
-
-        filename = g_dir_read_name (directory);
+        const gchar *filename = g_dir_read_name (directory);
         if (filename == NULL)
             break;
 
         if (!g_str_has_suffix (filename, ".desktop"))
             continue;
 
-        path = g_build_filename (sessions_dir, filename, NULL);
+        g_autofree gchar *path = g_build_filename (sessions_dir, filename, NULL);
 
-        key_file = g_key_file_new ();
-        result = g_key_file_load_from_file (key_file, path, G_KEY_FILE_NONE, &error);
-        if (error)
-            g_warning ("Failed to load session file %s: %s:", path, error->message);
-        g_clear_error (&error);
+        g_autoptr(GKeyFile) key_file = g_key_file_new ();
+        g_autoptr(GError) e = NULL;
+        gboolean result = g_key_file_load_from_file (key_file, path, G_KEY_FILE_NONE, &e);
+        if (e)
+            g_warning ("Failed to load session file %s: %s:", path, e->message);
 
         if (result)
         {
-            gchar *key;
-            LightDMSession *session;
-
-            key = g_strndup (filename, strlen (filename) - strlen (".desktop"));
-            session = load_session (key_file, key, default_type);
+            g_autofree gchar *key = g_strndup (filename, strlen (filename) - strlen (".desktop"));
+            LightDMSession *session = load_session (key_file, key, default_type);
             if (session)
             {
                 g_debug ("Loaded session %s (%s, %s)", path, GET_PRIVATE (session)->name, GET_PRIVATE (session)->comment);
@@ -162,11 +154,7 @@ load_sessions_dir (GList *sessions, const gchar *sessions_dir, const gchar *defa
             }
             else
                 g_debug ("Ignoring session %s", path);
-            g_free (key);
         }
-
-        g_free (path);
-        g_key_file_free (key_file);
     }
 
     g_dir_close (directory);
@@ -177,12 +165,9 @@ load_sessions_dir (GList *sessions, const gchar *sessions_dir, const gchar *defa
 static GList *
 load_sessions (const gchar *sessions_dir)
 {
+    g_auto(GStrv) dirs = g_strsplit (sessions_dir, ":", -1);
     GList *sessions = NULL;
-    gchar **dirs;
-    int i;
-
-    dirs = g_strsplit (sessions_dir, ":", -1);
-    for (i = 0; dirs[i]; i++) 
+    for (int i = 0; dirs[i]; i++)
     {
         const gchar *default_type = "x";
 
@@ -191,8 +176,6 @@ load_sessions (const gchar *sessions_dir)
 
         sessions = load_sessions_dir (sessions, dirs[i], default_type);
     }
- 
-    g_strfreev (dirs);
 
     return sessions;
 }
@@ -200,20 +183,16 @@ load_sessions (const gchar *sessions_dir)
 static void
 update_sessions (void)
 {
-    gchar *sessions_dir;
-    gchar *remote_sessions_dir;
-    gchar *value;
-
     if (have_sessions)
         return;
 
-    sessions_dir = g_strdup (SESSIONS_DIR);
-    remote_sessions_dir = g_strdup (REMOTE_SESSIONS_DIR);
+    g_autofree gchar *sessions_dir = g_strdup (SESSIONS_DIR);
+    g_autofree gchar *remote_sessions_dir = g_strdup (REMOTE_SESSIONS_DIR);
 
     /* Use session directory from configuration */
     config_load_from_standard_locations (config_get_instance (), NULL, NULL);
 
-    value = config_get_string (config_get_instance (), "LightDM", "sessions-directory");
+    gchar *value = config_get_string (config_get_instance (), "LightDM", "sessions-directory");
     if (value)
     {
         g_free (sessions_dir);
@@ -229,9 +208,6 @@ update_sessions (void)
 
     local_sessions = load_sessions (sessions_dir);
     remote_sessions = load_sessions (remote_sessions_dir);
-
-    g_free (sessions_dir);
-    g_free (remote_sessions_dir);
 
     have_sessions = TRUE;
 }
@@ -331,22 +307,20 @@ lightdm_session_init (LightDMSession *session)
 
 static void
 lightdm_session_set_property (GObject      *object,
-                          guint         prop_id,
-                          const GValue *value,
-                          GParamSpec   *pspec)
+                              guint         prop_id,
+                              const GValue *value,
+                              GParamSpec   *pspec)
 {
     G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
 }
 
 static void
 lightdm_session_get_property (GObject    *object,
-                          guint       prop_id,
-                          GValue     *value,
-                          GParamSpec *pspec)
+                              guint       prop_id,
+                              GValue     *value,
+                              GParamSpec *pspec)
 {
-    LightDMSession *self;
-
-    self = LIGHTDM_SESSION (object);
+    LightDMSession *self = LIGHTDM_SESSION (object);
 
     switch (prop_id) {
     case PROP_KEY:

@@ -61,11 +61,15 @@ typedef struct
     void (*stopped)(Seat *seat);
 } SeatClass;
 
+G_DEFINE_AUTOPTR_CLEANUP_FUNC (Seat, g_object_unref)
+
 GType seat_get_type (void);
 
 void seat_register_module (const gchar *name, GType type);
 
-Seat *seat_new (const gchar *module_name, const gchar *name);
+Seat *seat_new (const gchar *module_name);
+
+void seat_set_name (Seat *seat, const gchar *name);
 
 void seat_set_property (Seat *seat, const gchar *name, const gchar *value);
 

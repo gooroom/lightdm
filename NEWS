@@ -1,7 +1,107 @@
-Overview of changes in lightdm 1.18.3
+Overview of changes in lightdm 1.26.0
 
-    * Fix error that caused stdin to be closed. This seems to have lots of bad
-      side effects (greeter not working correctly, multi-seat failing).
+    * No changes from 1.25.2
+
+Overview of changes in lightdm 1.25.2
+
+    * Fix incorrect use of ConsoleKit CanSuspend/Hibernate API
+    * Correctly install AccountsService interface file
+    * Fix build system to require C99
+    * Use standard format for arguments passed to qtchooser
+
+Overview of changes in lightdm 1.25.1
+
+    * Fixes for VNC and XDMCP connections
+    * Use AccountsService extension system for extended greeter information
+    * Modernise code style
+
+Overview of changes in lightdm 1.25.0
+
+    * Support moc being called moc-qt5 (e.g. Fedora)
+    * Fail configure if MOC can't be found
+    * Expose autologin-session as a hint to the greeter
+    * Fix timed autologins not using autologin-session when no session specified
+
+Overview of changes in lightdm 1.24.0
+
+    * No changes from 1.22
+
+Overview of changes in lightdm 1.22.0
+
+    * Allow guest sessions to talk to Mir (allowing unity8)
+
+Overview of changes in lightdm 1.21.5
+
+    * Fix logic that checked if a session was being stopped.
+      This fixes a race condition that could cause logging into an existing
+      session from a greeter to not return to that session.
+
+Overview of changes in lightdm 1.21.4
+
+    * Use power management functions from ConsoleKit2 if available.
+    * Correctly pass return value from sessions to LightDM.
+    * Retry VT_WAITACTIVE if we get EINTR.
+    * Ignore SIGHUP by default.
+    * Use SA_RESTART with SIGPIPE.
+    * liblightdm-qt: Use liblightdm-gobject power methods instead of
+      re-implementing in Qt.
+
+Overview of changes in lightdm 1.21.3
+
+    * Fix crashes introduced in 1.21.2 due to environment variable changes
+    * Fix incorrect unref in XDMCP server code
+    * Fix logging warning
+
+Overview of changes in lightdm 1.21.2
+
+    * Use SA_RESTART on signals so we don't get interrupted reads
+    * Use logind to terminate greeter sessions if it is available
+    * Load greeters from XDG_DATA_DIRS instead of compile time value
+    * Allow D-Bus interface to be disabled
+    * Always pass through LD_PRELOAD, LD_LIBRARY_PATH and PATH to
+      sessions/display servers
+
+Overview of changes in lightdm 1.21.1
+
+    * Fix greeters crashing with unknown configuration keys (regression from
+      1.21.0)
+    * Add an API verison to the greeter-daemon protocol for future enhancements
+    * More regression tests
+
+Overview of changes in lightdm 1.21.0
+
+    * Add liblightdm functions for getting OS release information and the
+      message of the day.
+    * Warn if we find unknown keys in configuration.
+    * Fix .profile errors not showing in .xsession-errors log.
+    * Remove duplicate Qt property in liblightdm.
+    * Fix and improve liblightdm API documentation.
+    * Minor GIR annotation fixes.
+
+Overview of changes in lightdm 1.20.0
+
+    * Use stable version number (no other changes)
+
+Overview of changes in lightdm 1.19.5
+
+    * Fix errors in documentation generation
+    * Improve documentation
+    * Fix guest AppArmor profile to allow guest sessions more access to the
+      upstart session socket
+    * Fix small memory leak in liblightdm-gobject keyboard layout code
+
+Overview of changes in lightdm 1.19.4
+
+    * Fix various issues in new in-session greeter code
+    * Fix user list memory management exposed by use of in-session greeters
+    * Fix some spurious warnings in the log
+
+Overview of changes in lightdm 1.19.3
+
+    * Fix in-session greeters not working for greeter logins
+
+Overview of changes in lightdm 1.19.2
+
     * Add support for greeters running inside sessions. This is enabled by
       setting X-LightDM-Allow-Greeter inside the session .desktop file.
       The session can then use liblightdm to connect one greeter to the
@@ -9,24 +109,36 @@ Overview of changes in lightdm 1.18.3
       (/var/run/lightdm/<user>/greeter-socket) that is accessible to any
       process run by that user. Consider controlling access to this socket
       using a MAC system such as AppArmor.
-    * Fix various memory management issues exposed by the use of in-session
-      greeters.
+    * Report errors for all liblightdm methods. This will require existing
+      greeters to update their API usage. The ABI is unchanged.
+    * Handle EAGAIN correctly when daemons communicate with the daemon.
+    * Drop support for mir-container sessions - no-one ever used these.
 
-Overview of changes in lightdm 1.18.2
+Overview of changes in lightdm 1.19.1
 
-    * Don't quit on SIGUSR1, SIGUSR2 or SIGHUP
+    * Rename "xlocal" seat type to "local". Using "xlocal" will continue to work
+      but report a warning.
+    * Fix memory leaks
+    * Fix uninitialized memory errors
     * Use MIR_SERVER_HOST_SOCKET instead of MIR_SOCKET to report compositor
       socket to sessions. This used to work but no longer works in Mir 0.21
-    * Use only a single compositor on xlocal seats
+    * Allow XMir to run on the xlocal seat using the new x-server-backend=mir
+      option
+    * Use only a single compositor on local seats
     * Fix Mir greeter log filename having "(null)" in the name
-    * Set XDMCP hostname field in to system hostname or configured value
-    * Improve XDMCP IPv6 address selection
-    * Allow fcitx and mozc to run in guest session
-    * Fix uninitialized memory errors
+    * Copy fcitx/mozc rules so session works when these aren't installed
+    * Revert lxsession change - it caused the AppArmor to fail to compile
 
-Overview of changes in lightdm 1.18.1
+Overview of changes in lightdm 1.19.0
 
     * Use /dev/tty0 instead of /dev/console for VT operations
+    * Don't quit on SIGUSR1, SIGUSR2 or SIGHUP
+    * Improve XDMCP IPv6 address selection
+    * Set XDMCP hostname field in to system hostname or configured value
+    * Allow fcitx and mozc to run in guest session
+    * Fix lxsession running in guest sessiono
+    * Drop support for legacy XMir
+    * Fix g_spawn compiler warning
 
 Overview of changes in lightdm 1.18.0
 

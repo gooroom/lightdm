@@ -31,7 +31,7 @@ struct XServerPrivate
     xcb_connection_t *connection;
 };
 
-G_DEFINE_TYPE (XServer, x_server, DISPLAY_SERVER_TYPE);
+G_DEFINE_TYPE (XServer, x_server, DISPLAY_SERVER_TYPE)
 
 void
 x_server_set_hostname (XServer *server, const gchar *hostname)
@@ -106,8 +106,8 @@ static gboolean
 x_server_start (DisplayServer *display_server)
 {
     XServer *server = X_SERVER (display_server);
-    xcb_auth_info_t *auth = NULL, a;
 
+    xcb_auth_info_t *auth = NULL, a;
     if (server->priv->authority)
     {
         a.namelen = strlen (x_authority_get_authorization_name (server->priv->authority));
@@ -132,24 +132,21 @@ x_server_start (DisplayServer *display_server)
 static void
 x_server_connect_session (DisplayServer *display_server, Session *session)
 {
-    gint vt;
-
     session_set_env (session, "XDG_SESSION_TYPE", "x11");
 
     display_server = session_get_display_server (session);
 
-    vt = display_server_get_vt (display_server);
+    gint vt = display_server_get_vt (display_server);
     if (vt > 0)
     {
-        gchar *t;
+        g_autofree gchar *tty_text = NULL;
+        g_autofree gchar *vt_text = NULL;
 
-        t = g_strdup_printf ("/dev/tty%d", vt);
-        session_set_tty (session, t);
-        g_free (t);
+        tty_text = g_strdup_printf ("/dev/tty%d", vt);
+        session_set_tty (session, tty_text);
 
-        t = g_strdup_printf ("%d", vt);
-        session_set_env (session, "XDG_VTNR", t);
-        g_free (t);
+        vt_text = g_strdup_printf ("%d", vt);
+        session_set_env (session, "XDG_VTNR", vt_text);
     }
     else
         l_debug (session, "Not setting XDG_VTNR");
@@ -165,10 +162,8 @@ x_server_connect_session (DisplayServer *display_server, Session *session)
 static void
 x_server_disconnect_session (DisplayServer *display_server, Session *session)
 {
-    gint vt;
-
     session_unset_env (session, "XDG_SESSION_TYPE");
-    vt = display_server_get_vt (display_server);
+    gint vt = display_server_get_vt (display_server);
     if (vt > 0)
     {
         session_set_tty (session, NULL);
@@ -191,11 +186,12 @@ x_server_finalize (GObject *object)
 {
     XServer *self = X_SERVER (object);
 
-    g_free (self->priv->hostname);
-    g_free (self->priv->address);
+    g_clear_pointer (&self->priv->hostname, g_free);
+    g_clear_pointer (&self->priv->address, g_free);
     g_clear_object (&self->priv->authority);
     if (self->priv->connection)
         xcb_disconnect (self->priv->connection);
+    self->priv->connection = NULL;
 
     G_OBJECT_CLASS (x_server_parent_class)->finalize (object);
 }

@@ -22,13 +22,17 @@ G_BEGIN_DECLS
 #define LIGHTDM_IS_LAYOUT_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE ((klass), LIGHTDM_TYPE_LAYOUT))
 #define LIGHTDM_LAYOUT_GET_CLASS(obj)  (G_TYPE_INSTANCE_GET_CLASS ((obj), LIGHTDM_TYPE_LAYOUT, LightDMLayoutClass))
 
-typedef struct
+typedef struct _LightDMLayout          LightDMLayout;
+typedef struct _LightDMLayoutClass     LightDMLayoutClass;
+
+struct _LightDMLayout
 {
     GObject parent_instance;
-} LightDMLayout;
+};
 
-typedef struct
+struct _LightDMLayoutClass
 {
+    /*< private >*/
     GObjectClass parent_class;
 
     /* Reserved */
@@ -38,7 +42,7 @@ typedef struct
     void (*reserved4) (void);
     void (*reserved5) (void);
     void (*reserved6) (void);
-} LightDMLayoutClass;
+};
 
 #ifdef GLIB_VERSION_2_44
 typedef LightDMLayout *LightDMLayout_autoptr;

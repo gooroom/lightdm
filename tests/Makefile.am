@@ -13,6 +13,8 @@ TESTS = \
 	test-greeter-show-manual-login \
 	test-greeter-show-remote-login \
 	test-no-config \
+	test-unknown-config \
+	test-deprecated-config \
 	test-additional-config \
 	test-additional-config-priority \
 	test-additional-system-config \
@@ -34,6 +36,7 @@ TESTS = \
 	test-autologin-new-authtok \
 	test-autologin-timeout-gobject \
 	test-autologin-guest-timeout-gobject \
+	test-xlocal-legacy \
 	test-xserver-config \
 	test-allow-tcp \
 	test-allow-tcp-xorg-1.16 \
@@ -50,6 +53,7 @@ TESTS = \
 	test-autologin-session-error \
 	test-autologin-logout \
 	test-autologin-session \
+	test-autologin-session-timeout-gobject \
 	test-autologin-timeout-logout \
 	test-autologin-previous-session \
 	test-autologin-guest \
@@ -69,6 +73,7 @@ TESTS = \
 	test-xauthority \
 	test-corrupt-xauthority \
 	test-system-xauthority \
+	test-sessions-gobject \
 	test-user-renamed \
 	test-user-renamed-invalid \
 	test-user-name \
@@ -112,6 +117,8 @@ TESTS = \
 	test-login-remote-session-gobject \
 	test-login-session-crash \
 	test-login-xserver-crash \
+	test-login-greeter-return-failure \
+	test-multiple-authenticate \
 	test-xserver-no-share \
 	test-home-dir-on-authenticate \
 	test-home-dir-on-session \
@@ -132,6 +139,7 @@ TESTS = \
 	test-upstart-autologin \
 	test-upstart-login \
 	test-dbus \
+	test-no-dbus \
 	test-lock-seat \
 	test-lock-seat-after-vt-switch \
 	test-lock-seat-twice \
@@ -151,6 +159,7 @@ TESTS = \
 	test-switch-to-greeter-return-session \
 	test-switch-to-greeter-return-session-pam \
 	test-switch-to-greeter-return-session-logout \
+	test-switch-to-greeter-return-session-repeat \
 	test-switch-to-guest \
 	test-switch-to-guest-disabled \
 	test-switch-to-guest-fail-resettable \
@@ -185,10 +194,12 @@ TESTS = \
 	test-vnc-guest \
 	test-xremote-autologin \
 	test-xremote-login \
+	test-xremote-login-logout \
 	test-xdmcp-client \
 	test-xdmcp-client-xorg-1.16 \
 	test-xdmcp-server-autologin \
 	test-xdmcp-server-login \
+	test-xdmcp-server-login-logout \
 	test-xdmcp-server-double-login \
 	test-xdmcp-server-guest \
 	test-xdmcp-server-keep-alive \
@@ -214,12 +225,14 @@ TESTS = \
 	test-console-kit \
 	test-console-kit-no-xdg-runtime \
 	test-no-console-kit \
+	test-login1-terminate \
 	test-no-login1 \
 	test-no-console-kit-or-login1 \
 	test-power-gobject \
-	test-power-no-console-kit-gobject \
-	test-power-no-login1-gobject \
-	test-power-no-services-gobject \
+	test-power-no-console-kit \
+	test-power-no-login1 \
+	test-power-no-login1-or-console-kit \
+	test-power-no-services \
 	test-open-file-descriptors \
 	test-xdmcp-server-open-file-descriptors \
 	test-add-local-x-seat \
@@ -239,10 +252,9 @@ TESTS = \
 	test-mir-session \
 	test-mir-session-crash \
 	test-mir-session-compositor-crash \
-	test-mir-container-session \
-	test-wayland-autologin \
-	test-wayland-greeter \
-	test-wayland-session \
+	test-xmir-autologin \
+	test-xmir-login \
+	test-xmir-switch \
 	test-unity-compositor-command \
 	test-unity-compositor-not-found \
 	test-unity-compositor-fail-start \
@@ -252,7 +264,6 @@ TESTS = \
 	test-unity-compositor-next-session \
 	test-unity-compositor-mir-next-session \
 	test-unity-autologin \
-	test-unity-autologin-legacy \
 	test-unity-login \
 	test-unity-switch \
 	test-unity-plymouth \
@@ -265,6 +276,10 @@ TESTS = \
 	test-unity-mir-switch \
 	test-unity-mir-switch-to-user-resettable \
 	test-unity-mir-script-hooks \
+	test-wayland-autologin \
+	test-wayland-greeter \
+	test-wayland-session \
+	test-invalid-seat \
 	test-seatdefaults-still-supported
 
 #	test-mir-script-hooks \
@@ -275,7 +290,11 @@ TESTS = \
 #   test-autologin-create-directory
 
 TESTS += \
+	test-autologin-timeout-python \
+	test-autologin-guest-timeout-python \
+	test-autologin-session-timeout-python \
 	test-cancel-authentication-python \
+	test-sessions-python \
 	test-users-python \
 	test-login-python \
 	test-login-manual-python \
@@ -302,17 +321,13 @@ TESTS += \
 	test-login-guest-fail-setup-script-python \
 	test-login-guest-logout-python \
 	test-login-remote-session-python \
-	test-autologin-timeout-python \
-	test-autologin-guest-timeout-python \
-	test-power-python \
-	test-power-no-console-kit-python \
-	test-power-no-login1-python \
-	test-power-no-services-python
+	test-power-python
 
 if COMPILE_LIBLIGHTDM_QT4
 TESTS += \
 	test-autologin-timeout-qt4 \
 	test-autologin-guest-timeout-qt4 \
+	test-autologin-session-timeout-qt5 \
 	test-cancel-authentication-qt4 \
 	test-login-qt4 \
 	test-login-manual-qt4 \
@@ -339,17 +354,16 @@ TESTS += \
 	test-login-guest-fail-setup-script-qt4 \
 	test-login-guest-logout-qt4 \
 	test-login-remote-session-qt4 \
+	test-sessions-qt4 \
 	test-users-qt4 \
-	test-power-qt4 \
-	test-power-no-console-kit-qt4 \
-	test-power-no-login1-qt4 \
-	test-power-no-services-qt4
+	test-power-qt4
 endif
 
 if COMPILE_LIBLIGHTDM_QT5
 TESTS += \
 	test-autologin-timeout-qt5 \
 	test-autologin-guest-timeout-qt5 \
+	test-autologin-session-timeout-qt5 \
 	test-cancel-authentication-qt5 \
 	test-login-qt5 \
 	test-login-manual-qt5 \
@@ -376,11 +390,9 @@ TESTS += \
 	test-login-guest-fail-setup-script-qt5 \
 	test-login-guest-logout-qt5 \
 	test-login-remote-session-qt5 \
+	test-sessions-qt5 \
 	test-users-qt5 \
-	test-power-qt5 \
-	test-power-no-console-kit-qt5 \
-	test-power-no-login1-qt5 \
-	test-power-no-services-qt5
+	test-power-qt5
 endif
 
 EXTRA_DIST = \
@@ -399,7 +411,6 @@ EXTRA_DIST = \
 	data/sessions/default.desktop \
 	data/sessions/greeter.desktop \
 	data/sessions/mir.desktop \
-	data/sessions/mir-container.desktop \
 	data/sessions/named.desktop \
 	data/sessions/named-legacy.desktop \
 	data/sessions/wayland.desktop \
@@ -433,6 +444,7 @@ EXTRA_DIST = \
 	scripts/autologin-session.conf \
 	scripts/autologin-session-crash.conf \
 	scripts/autologin-session-error.conf \
+	scripts/autologin-session-timeout.conf \
 	scripts/autologin-timeout.conf \
 	scripts/autologin-timeout-in-background.conf \
 	scripts/autologin-timeout-logout.conf \
@@ -448,6 +460,7 @@ EXTRA_DIST = \
 	scripts/cred-unavail.conf \
 	scripts/dbus.conf \
 	scripts/denied.conf \
+	scripts/deprecated-config.conf \
 	scripts/expired.conf \
 	scripts/greeter-allow-guest.conf \
 	scripts/greeter-crash.conf \
@@ -464,6 +477,7 @@ EXTRA_DIST = \
 	scripts/headless.conf \
 	scripts/home-dir-on-authenticate.conf \
 	scripts/home-dir-on-session.conf \
+	scripts/invalid-seat.conf \
 	scripts/language.conf \
 	scripts/language-env.conf \
 	scripts/language-no-accounts-service.conf \
@@ -479,8 +493,10 @@ EXTRA_DIST = \
 	scripts/lock-session-resettable.conf \
 	scripts/lock-session-return-session.conf \
 	scripts/lock-session-twice.conf \
+	scripts/login1-terminate.conf \
 	scripts/login.conf \
 	scripts/login-crash-authenticate.conf \
+	scripts/login-greeter-return-failure.conf \
 	scripts/login-guest.conf \
 	scripts/login-guest-disabled.conf \
 	scripts/login-guest-fail-setup-script.conf \
@@ -513,12 +529,12 @@ EXTRA_DIST = \
 	scripts/login-wrong-password.conf \
 	scripts/login-xserver-crash.conf \
 	scripts/mir-autologin.conf \
-	scripts/mir-container-session.conf \
 	scripts/mir-greeter.conf \
 	scripts/mir-script-hooks.conf \
 	scripts/mir-session.conf \
 	scripts/mir-session-compositor-crash.conf \
 	scripts/mir-session-crash.conf \
+	scripts/multiple-authenticate.conf \
 	scripts/multi-seat.conf \
 	scripts/multi-seat-autologin-seat0.conf \
 	scripts/multi-seat-autologin-seat1.conf \
@@ -534,12 +550,14 @@ EXTRA_DIST = \
 	scripts/no-config.conf \
 	scripts/no-console-kit.conf \
 	scripts/no-console-kit-or-login1.conf \
+	scripts/no-dbus.conf \
 	scripts/no-login1.conf \
 	scripts/open-file-descriptors.conf \
 	scripts/power.conf \
 	scripts/power-no-console-kit.conf \
 	scripts/power-no-services.conf \
 	scripts/power-no-login1.conf \
+	scripts/power-no-login1-or-console-kit.conf \
 	scripts/plymouth-active-vt.conf \
 	scripts/plymouth-inactive-vt.conf \
 	scripts/plymouth-no-seat.conf \
@@ -555,6 +573,8 @@ EXTRA_DIST = \
 	scripts/script-hook-greeter-setup-missing.conf \
 	scripts/script-hook-session-setup-fail.conf \
 	scripts/script-hook-session-setup-missing.conf \
+	scripts/seatdefaults-still-supported.conf \
+	scripts/sessions.conf \
 	scripts/session-greeter.conf \
 	scripts/session-greeter-allow-guest.conf \
 	scripts/session-greeter-autologin.conf \
@@ -578,6 +598,7 @@ EXTRA_DIST = \
 	scripts/switch-to-greeter-return-session.conf \
 	scripts/switch-to-greeter-return-session-logout.conf \
 	scripts/switch-to-greeter-return-session-pam.conf \
+	scripts/switch-to-greeter-return-session-repeat.conf \
 	scripts/switch-to-guest.conf \
 	scripts/switch-to-guest-disabled.conf \
 	scripts/switch-to-guest-fail-resettable.conf \
@@ -595,7 +616,6 @@ EXTRA_DIST = \
 	scripts/switch-to-user-resettable.conf \
 	scripts/system-xauthority.conf \
 	scripts/unity-autologin.conf \
-	scripts/unity-autologin-legacy.conf \
 	scripts/unity-compositor-command.conf \
 	scripts/unity-compositor-crash.conf \
 	scripts/unity-compositor-fail-ready.conf \
@@ -616,6 +636,7 @@ EXTRA_DIST = \
 	scripts/unity-plymouth.conf \
 	scripts/unity-script-hooks.conf \
 	scripts/unity-switch.conf \
+	scripts/unknown-config.conf \
 	scripts/upstart-autologin.conf \
 	scripts/upstart-login.conf \
 	scripts/users.conf \
@@ -652,6 +673,7 @@ EXTRA_DIST = \
 	scripts/xdmcp-server-invalid-authentication.conf \
 	scripts/xdmcp-server-keep-alive.conf \
 	scripts/xdmcp-server-login.conf \
+	scripts/xdmcp-server-login-logout.conf \
 	scripts/xdmcp-server-open-file-descriptors.conf \
 	scripts/xdmcp-server-request-invalid-authentication.conf \
 	scripts/xdmcp-server-request-invalid-authorization.conf \
@@ -665,9 +687,13 @@ EXTRA_DIST = \
 	scripts/xdmcp-server-xdm-authentication-no-key.conf \
 	scripts/xdmcp-server-xdm-authentication-required.conf \
 	scripts/xdmcp-server-xdm-authentication-short-data.conf \
+	scripts/xlocal-legacy.conf \
+	scripts/xmir-autologin.conf \
+	scripts/xmir-login.conf \
+	scripts/xmir-switch.conf \
 	scripts/xremote-autologin.conf \
 	scripts/xremote-login.conf \
+	scripts/xremote-login-logout.conf \
 	scripts/xserver-config.conf \
 	scripts/xserver-fail-start.conf \
-	scripts/xserver-no-share.conf \
-	scripts/seatdefaults-still-supported.conf
+	scripts/xserver-no-share.conf

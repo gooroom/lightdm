@@ -16,9 +16,29 @@
 
 #include "lightdm/language.h"
 
+/**
+ * SECTION:language
+ * @short_description: Get information on available languages
+ * @include: lightdm.h
+ *
+ * #LightDMLanguage is an object that describes a language that is available on the system.
+ */
+
+/**
+ * LightDMLanguage:
+ *
+ * #LightDMLanguage is an opaque data structure and can only be accessed
+ * using the provided functions.
+ */
+
+/**
+ * LightDMLanguageClass:
+ *
+ * Class structure for #LightDMLanguage.
+ */
+
 enum {
-    PROP_0,
-    PROP_CODE,
+    PROP_CODE = 1,
     PROP_NAME,
     PROP_TERRITORY
 };
@@ -30,7 +50,7 @@ typedef struct
     gchar *territory;
 } LightDMLanguagePrivate;
 
-G_DEFINE_TYPE (LightDMLanguage, lightdm_language, G_TYPE_OBJECT);
+G_DEFINE_TYPE (LightDMLanguage, lightdm_language, G_TYPE_OBJECT)
 
 #define GET_PRIVATE(obj) G_TYPE_INSTANCE_GET_PRIVATE ((obj), LIGHTDM_TYPE_LANGUAGE, LightDMLanguagePrivate)
 
@@ -40,35 +60,25 @@ static GList *languages = NULL;
 static void
 update_languages (void)
 {
-    gchar *command = "locale -a";
-    gchar *stdout_text = NULL, *stderr_text = NULL;
-    gint exit_status;
-    gboolean result;
-    GError *error = NULL;
-
     if (have_languages)
         return;
 
-    result = g_spawn_command_line_sync (command, &stdout_text, &stderr_text, &exit_status, &error);
+    const gchar *command = "locale -a";
+    g_autofree gchar *stdout_text = NULL;
+    g_autofree gchar *stderr_text = NULL;
+    gint exit_status;
+    g_autoptr(GError) error = NULL;
+    gboolean result = g_spawn_command_line_sync (command, &stdout_text, &stderr_text, &exit_status, &error);
     if (error)
-    {
         g_warning ("Failed to run '%s': %s", command, error->message);
-        g_clear_error (&error);
-    }
     else if (exit_status != 0)
         g_warning ("Failed to get languages, '%s' returned %d", command, exit_status);
     else if (result)
     {
-        gchar **tokens;
-        int i;
-
-        tokens = g_strsplit_set (stdout_text, "\n\r", -1);
-        for (i = 0; tokens[i]; i++)
+        g_auto(GStrv) tokens = g_strsplit_set (stdout_text, "\n\r", -1);
+        for (int i = 0; tokens[i]; i++)
         {
-            LightDMLanguage *language;
-            gchar *code;
-
-            code = g_strchug (tokens[i]);
+            const gchar *code = g_strchug (tokens[i]);
             if (code[0] == '\0')
                 continue;
 
@@ -76,15 +86,10 @@ update_languages (void)
             if (strcmp (command, "locale -a") == 0 && !g_strrstr (code, ".utf8"))
                 continue;
 
-            language = g_object_new (LIGHTDM_TYPE_LANGUAGE, "code", code, NULL);
+            LightDMLanguage *language = g_object_new (LIGHTDM_TYPE_LANGUAGE, "code", code, NULL);
             languages = g_list_append (languages, language);
         }
-
-        g_strfreev (tokens);
     }
-
-    g_free (stdout_text);
-    g_free (stderr_text);
 
     have_languages = TRUE;
 }
@@ -99,54 +104,40 @@ is_utf8 (const gchar *code)
 static gchar *
 get_locale_name (const gchar *code)
 {
-    gchar *locale = NULL, *language;
-    char *at;
-    static gchar **avail_locales;
-    gint i;
-
     if (is_utf8 (code))
-        return (gchar *) code;
+        return g_strdup (code);
 
-    if ((at = strchr (code, '@')))
+    g_autofree gchar *language = NULL;
+    const char *at = strchr (code, '@');
+    if (at)
         language = g_strndup (code, at - code);
     else
         language = g_strdup (code);
 
+    static gchar **avail_locales;
     if (!avail_locales)
     {
-        gchar *locales;
-        GError *error = NULL;
-
+        g_autofree gchar *locales = NULL;
+        g_autoptr(GError) error = NULL;
         if (g_spawn_command_line_sync ("locale -a", &locales, NULL, NULL, &error))
-        {
             avail_locales = g_strsplit (g_strchomp (locales), "\n", -1);
-            g_free (locales);
-        }
         else
-        {
             g_warning ("Failed to run 'locale -a': %s", error->message);
-            g_clear_error (&error);
-        }
     }
 
-    if (avail_locales)
+    if (!avail_locales)
+        return NULL;
+
+    for (gint i = 0; avail_locales[i]; i++)
     {
-        for (i = 0; avail_locales[i]; i++)
-        {
-            gchar *loc = avail_locales[i];
-            if (!g_strrstr (loc, ".utf8"))
-                continue;
-            if (g_str_has_prefix (loc, language))
-            {
-                locale = g_strdup (loc);
-                break;
-            }
-        }
+        const gchar *loc = avail_locales[i];
+        if (!g_strrstr (loc, ".utf8"))
+            continue;
+        if (g_str_has_prefix (loc, language))
+            return g_strdup (loc);
     }
 
-    g_free (language);
-
-    return locale;
+    return NULL;
 }
 
 /**
@@ -159,14 +150,11 @@ get_locale_name (const gchar *code)
 LightDMLanguage *
 lightdm_get_language (void)
 {
-    const gchar *lang;
-    GList *link;
-
-    lang = g_getenv ("LANG");
+    const gchar *lang = g_getenv ("LANG");
     if (!lang)
         return NULL;
 
-    for (link = lightdm_get_languages (); link; link = link->next)
+    for (GList *link = lightdm_get_languages (); link; link = link->next)
     {
         LightDMLanguage *language = link->data;
         if (lightdm_language_matches (language, lang))
@@ -216,22 +204,20 @@ lightdm_language_get_code (LightDMLanguage *language)
 const gchar *
 lightdm_language_get_name (LightDMLanguage *language)
 {
-    LightDMLanguagePrivate *priv;
-
     g_return_val_if_fail (LIGHTDM_IS_LANGUAGE (language), NULL);
 
-    priv = GET_PRIVATE (language);
+    LightDMLanguagePrivate *priv = GET_PRIVATE (language);
 
     if (!priv->name)
     {
-        gchar *locale = get_locale_name (priv->code);
+        g_autofree gchar *locale = get_locale_name (priv->code);
         if (locale)
         {
-            gchar *current = setlocale (LC_ALL, NULL);
+            const gchar *current = setlocale (LC_ALL, NULL);
             setlocale (LC_IDENTIFICATION, locale);
             setlocale (LC_MESSAGES, "");
 
-            gchar *language_en = nl_langinfo (_NL_IDENTIFICATION_LANGUAGE);
+            const gchar *language_en = nl_langinfo (_NL_IDENTIFICATION_LANGUAGE);
             if (language_en && strlen (language_en) > 0)
                 priv->name = g_strdup (dgettext ("iso_639_3", language_en));
 
@@ -239,9 +225,8 @@ lightdm_language_get_name (LightDMLanguage *language)
         }
         if (!priv->name)
         {
-            gchar **tokens = g_strsplit_set (priv->code, "_.@", 2);
+            g_auto(GStrv) tokens = g_strsplit_set (priv->code, "_.@", 2);
             priv->name = g_strdup (tokens[0]);
-            g_strfreev (tokens);
         }
     }
 
@@ -259,15 +244,13 @@ lightdm_language_get_name (LightDMLanguage *language)
 const gchar *
 lightdm_language_get_territory (LightDMLanguage *language)
 {
-    LightDMLanguagePrivate *priv;
-
     g_return_val_if_fail (LIGHTDM_IS_LANGUAGE (language), NULL);
 
-    priv = GET_PRIVATE (language);
+    LightDMLanguagePrivate *priv = GET_PRIVATE (language);
 
     if (!priv->territory && strchr (priv->code, '_'))
     {
-        gchar *locale = get_locale_name (priv->code);
+        g_autofree gchar *locale = get_locale_name (priv->code);
         if (locale)
         {
             gchar *current = setlocale (LC_ALL, NULL);
@@ -282,9 +265,8 @@ lightdm_language_get_territory (LightDMLanguage *language)
         }
         if (!priv->territory)
         {
-            gchar **tokens = g_strsplit_set (priv->code, "_.@", 3);
+            g_auto(GStrv) tokens = g_strsplit_set (priv->code, "_.@", 3);
             priv->territory = g_strdup (tokens[1]);
-            g_strfreev (tokens);
         }
     }
 
@@ -303,12 +285,10 @@ lightdm_language_get_territory (LightDMLanguage *language)
 gboolean
 lightdm_language_matches (LightDMLanguage *language, const gchar *code)
 {
-    LightDMLanguagePrivate *priv;
-
     g_return_val_if_fail (LIGHTDM_IS_LANGUAGE (language), FALSE);
     g_return_val_if_fail (code != NULL, FALSE);
 
-    priv = GET_PRIVATE (language);
+    LightDMLanguagePrivate *priv = GET_PRIVATE (language);
 
     /* Handle the fact the UTF-8 is specified both as '.utf8' and '.UTF-8' */
     if (is_utf8 (priv->code) && is_utf8 (code))
@@ -329,9 +309,9 @@ lightdm_language_init (LightDMLanguage *language)
 
 static void
 lightdm_language_set_property (GObject      *object,
-                           guint         prop_id,
-                           const GValue *value,
-                           GParamSpec   *pspec)
+                               guint         prop_id,
+                               const GValue *value,
+                               GParamSpec   *pspec)
 {
     LightDMLanguage *self = LIGHTDM_LANGUAGE (object);
     LightDMLanguagePrivate *priv = GET_PRIVATE (self);
@@ -349,13 +329,11 @@ lightdm_language_set_property (GObject      *object,
 
 static void
 lightdm_language_get_property (GObject    *object,
-                           guint       prop_id,
-                           GValue     *value,
-                           GParamSpec *pspec)
+                               guint       prop_id,
+                               GValue     *value,
+                               GParamSpec *pspec)
 {
-    LightDMLanguage *self;
-
-    self = LIGHTDM_LANGUAGE (object);
+    LightDMLanguage *self = LIGHTDM_LANGUAGE (object);
 
     switch (prop_id) {
     case PROP_CODE:

@@ -13,9 +13,29 @@
 
 #include "lightdm/layout.h"
 
+/**
+ * SECTION:layout
+ * @short_description: Control the keyboard layout
+ * @include: lightdm.h
+ *
+ * #LightDMLayout is an object that describes a keyboard that is available on the system.
+ */
+
+/**
+ * LightDMLayout:
+ *
+ * #LightDMLayout is an opaque data structure and can only be accessed
+ * using the provided functions.
+ */
+
+/**
+ * LightDMLayoutClass:
+ *
+ * Class structure for #LightDMLayout.
+ */
+
 enum {
-    PROP_0,
-    PROP_NAME,
+    PROP_NAME = 1,
     PROP_SHORT_DESCRIPTION,
     PROP_DESCRIPTION
 };
@@ -27,7 +47,7 @@ typedef struct
     gchar *description;
 } LightDMLayoutPrivate;
 
-G_DEFINE_TYPE (LightDMLayout, lightdm_layout, G_TYPE_OBJECT);
+G_DEFINE_TYPE (LightDMLayout, lightdm_layout, G_TYPE_OBJECT)
 
 #define GET_PRIVATE(obj) G_TYPE_INSTANCE_GET_PRIVATE ((obj), LIGHTDM_TYPE_LAYOUT, LightDMLayoutPrivate)
 
@@ -52,22 +72,19 @@ make_layout_string (const gchar *layout, const gchar *variant)
 static void
 parse_layout_string (const gchar *name, gchar **layout, gchar **variant)
 {
-    gchar **split;
-
     *layout = NULL;
     *variant = NULL;
 
     if (!name)
         return;
 
-    split = g_strsplit (name, "\t", 2);
+    g_auto(GStrv) split = g_strsplit (name, "\t", 2);
     if (split[0])
     {
         *layout = g_strdup (split[0]);
         if (split[1])
             *variant = g_strdup (split[1]);
     }
-    g_strfreev (split);
 }
 
 static void
@@ -75,15 +92,9 @@ variant_cb (XklConfigRegistry *config,
            const XklConfigItem *item,
            gpointer data)
 {
-    LightDMLayout *layout;
-    gchar *full_name;
-
-    full_name = make_layout_string (data, item->name);
-
-    layout = g_object_new (LIGHTDM_TYPE_LAYOUT, "name", full_name, "short-description", item->short_description, "description", item->description, NULL);
+    g_autofree gchar *full_name = make_layout_string (data, item->name);
+    LightDMLayout *layout = g_object_new (LIGHTDM_TYPE_LAYOUT, "name", full_name, "short-description", item->short_description, "description", item->description, NULL);
     layouts = g_list_append (layouts, layout);
-
-    g_free (full_name);
 }
 
 static void
@@ -91,9 +102,7 @@ layout_cb (XklConfigRegistry *config,
            const XklConfigItem *item,
            gpointer data)
 {
-    LightDMLayout *layout;
-
-    layout = g_object_new (LIGHTDM_TYPE_LAYOUT, "name", item->name, "short-description", item->short_description, "description", item->description, NULL);
+    LightDMLayout *layout = g_object_new (LIGHTDM_TYPE_LAYOUT, "name", item->name, "short-description", item->short_description, "description", item->description, NULL);
     layouts = g_list_append (layouts, layout);
 
     xkl_config_registry_foreach_layout_variant (config, item->name, variant_cb, (gpointer) item->name);
@@ -109,8 +118,6 @@ layout_cb (XklConfigRegistry *config,
 GList *
 lightdm_get_layouts (void)
 {
-    XklConfigRegistry *registry;
-
     if (have_layouts)
         return layouts;
 
@@ -123,7 +130,7 @@ lightdm_get_layouts (void)
     if (!xkl_config_rec_get_from_server (xkl_config, xkl_engine))
         g_warning ("Failed to get Xkl configuration from server");
 
-    registry = xkl_config_registry_get_instance (xkl_engine);
+    XklConfigRegistry *registry = xkl_config_registry_get_instance (xkl_engine);
     xkl_config_registry_load (registry, FALSE);
     xkl_config_registry_foreach_layout (registry, layout_cb, NULL);
     g_object_unref (registry);
@@ -142,22 +149,21 @@ lightdm_get_layouts (void)
 void
 lightdm_set_layout (LightDMLayout *dmlayout)
 {
-    XklConfigRec *config;
-    gchar *layout, *variant;
-
     g_return_if_fail (dmlayout != NULL);
 
     g_debug ("Setting keyboard layout to '%s'", lightdm_layout_get_name (dmlayout));
 
+    g_autofree gchar *layout = NULL;
+    g_autofree gchar *variant = NULL;
     parse_layout_string (lightdm_layout_get_name (dmlayout), &layout, &variant);
 
-    config = xkl_config_rec_new ();
+    XklConfigRec *config = xkl_config_rec_new ();
     config->layouts = g_malloc (sizeof (gchar *) * 2);
     config->variants = g_malloc (sizeof (gchar *) * 2);
     config->model = g_strdup (xkl_config->model);
-    config->layouts[0] = layout;
+    config->layouts[0] = g_steal_pointer (&layout);
     config->layouts[1] = NULL;
-    config->variants[0] = variant;
+    config->variants[0] = g_steal_pointer (&variant);
     config->variants[1] = NULL;
     if (!xkl_config_rec_activate (config, xkl_engine))
         g_warning ("Failed to activate XKL config");
@@ -178,13 +184,10 @@ lightdm_get_layout (void)
 
     if (layouts && xkl_config && !default_layout)
     {
-        gchar *full_name;
-        GList *item;
+        g_autofree gchar *full_name = make_layout_string (xkl_config->layouts ? xkl_config->layouts[0] : NULL,
+                                                          xkl_config->variants ? xkl_config->variants[0] : NULL);
 
-        full_name = make_layout_string (xkl_config->layouts ? xkl_config->layouts[0] : NULL,
-                                        xkl_config->variants ? xkl_config->variants[0] : NULL);
-
-        for (item = layouts; item; item = item->next)
+        for (GList *item = layouts; item; item = item->next)
         {
             LightDMLayout *iter_layout = (LightDMLayout *) item->data;
             if (g_strcmp0 (lightdm_layout_get_name (iter_layout), full_name) == 0)
@@ -193,8 +196,6 @@ lightdm_get_layout (void)
                 break;
             }
         }
-
-        g_free (full_name);
     }
 
     return default_layout;
@@ -252,9 +253,9 @@ lightdm_layout_init (LightDMLayout *layout)
 
 static void
 lightdm_layout_set_property (GObject      *object,
-                         guint         prop_id,
-                         const GValue *value,
-                         GParamSpec   *pspec)
+                             guint         prop_id,
+                             const GValue *value,
+                             GParamSpec   *pspec)
 {
     LightDMLayout *self = LIGHTDM_LAYOUT (object);
     LightDMLayoutPrivate *priv = GET_PRIVATE (self);
@@ -280,13 +281,11 @@ lightdm_layout_set_property (GObject      *object,
 
 static void
 lightdm_layout_get_property (GObject    *object,
-                         guint       prop_id,
-                         GValue     *value,
-                         GParamSpec *pspec)
+                             guint       prop_id,
+                             GValue     *value,
+                             GParamSpec *pspec)
 {
-    LightDMLayout *self;
-
-    self = LIGHTDM_LAYOUT (object);
+    LightDMLayout *self = LIGHTDM_LAYOUT (object);
 
     switch (prop_id) {
     case PROP_NAME:
@@ -305,6 +304,17 @@ lightdm_layout_get_property (GObject    *object,
 }
 
 static void
+lightdm_layout_finalize (GObject *object)
+{
+    LightDMLayout *self = LIGHTDM_LAYOUT (object);
+    LightDMLayoutPrivate *priv = GET_PRIVATE (self);
+
+    g_free (priv->name);
+    g_free (priv->short_description);
+    g_free (priv->description);
+}
+
+static void
 lightdm_layout_class_init (LightDMLayoutClass *klass)
 {
     GObjectClass *object_class = G_OBJECT_CLASS (klass);
@@ -313,6 +323,7 @@ lightdm_layout_class_init (LightDMLayoutClass *klass)
 
     object_class->set_property = lightdm_layout_set_property;
     object_class->get_property = lightdm_layout_get_property;
+    object_class->finalize = lightdm_layout_finalize;
 
     g_object_class_install_property (object_class,
                                      PROP_NAME,

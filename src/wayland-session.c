@@ -19,7 +19,7 @@ struct WaylandSessionPrivate
     gboolean have_vt_ref;
 };
 
-G_DEFINE_TYPE (WaylandSession, wayland_session, DISPLAY_SERVER_TYPE);
+G_DEFINE_TYPE (WaylandSession, wayland_session, DISPLAY_SERVER_TYPE)
 
 WaylandSession *
 wayland_session_new (void)
@@ -59,9 +59,8 @@ wayland_session_connect_session (DisplayServer *display_server, Session *session
 
     if (wayland_session->priv->vt >= 0)
     {
-        gchar *value = g_strdup_printf ("%d", wayland_session->priv->vt);
+        g_autofree gchar *value = g_strdup_printf ("%d", wayland_session->priv->vt);
         session_set_env (session, "XDG_VTNR", value);
-        g_free (value);
     }
 }
 

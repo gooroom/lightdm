@@ -12,14 +12,15 @@
 
 #include "x-server.h"
 
-G_DEFINE_TYPE (XServer, x_server, G_TYPE_OBJECT);
-G_DEFINE_TYPE (XClient, x_client, G_TYPE_OBJECT);
+G_DEFINE_TYPE (XServer, x_server, G_TYPE_OBJECT)
+G_DEFINE_TYPE (XClient, x_client, G_TYPE_OBJECT)
 
 #define MAXIMUM_REQUEST_LENGTH 65535
 
 enum {
     X_SERVER_CLIENT_CONNECTED,
     X_SERVER_CLIENT_DISCONNECTED,
+    X_SERVER_RESET,
     X_SERVER_LAST_SIGNAL
 };
 static guint x_server_signals[X_SERVER_LAST_SIGNAL] = { 0 };
@@ -51,25 +52,19 @@ static guint x_client_signals[X_CLIENT_LAST_SIGNAL] = { 0 };
 void
 x_client_send_failed (XClient *client, const gchar *reason)
 {
-    gchar *message;
-
-    message = g_strdup_printf ("FAILED:%s", reason);
+    g_autofree gchar *message = g_strdup_printf ("FAILED:%s", reason);
     errno = 0;
     if (send (g_io_channel_unix_get_fd (client->priv->channel), message, strlen (message), 0) != strlen (message))
         g_printerr ("Failed to send FAILED: %s\n", strerror (errno));
-    g_free (message);
 }
 
 void
 x_client_send_success (XClient *client)
 {
-    gchar *message;
-
-    message = g_strdup ("SUCCESS");
+    g_autofree gchar *message = g_strdup ("SUCCESS");
     errno = 0;
     if (send (g_io_channel_unix_get_fd (client->priv->channel), message, strlen (message), 0) != strlen (message))
         g_printerr ("Failed to send SUCCESS: %s\n", strerror (errno));
-    g_free (message);
 }
 
 void
@@ -107,34 +102,48 @@ x_server_new (gint display_number)
     return server;
 }
 
-static void
-x_client_disconnected_cb (XClient *client, XServer *server)
+static gboolean
+client_read_cb (GIOChannel *channel, GIOCondition condition, gpointer data)
 {
-    g_signal_handlers_disconnect_matched (client, G_SIGNAL_MATCH_DATA, 0, 0, NULL, NULL, server);
-    g_hash_table_remove (server->priv->clients, client->priv->channel);
-    g_signal_emit (server, x_server_signals[X_SERVER_CLIENT_DISCONNECTED], 0, client);
+    XClient *client = data;
+
+    g_autofree gchar *d = NULL;
+    gsize d_length;
+    if (g_io_channel_read_to_end (channel, &d, &d_length, NULL) == G_IO_STATUS_NORMAL && d_length == 0)
+    {
+        XServer *server = client->priv->server;
+
+        g_signal_emit (client, x_client_signals[X_CLIENT_DISCONNECTED], 0);
+        g_signal_emit (server, x_server_signals[X_SERVER_CLIENT_DISCONNECTED], 0, client);
+
+        g_hash_table_remove (server->priv->clients, client->priv->channel);
+
+        if (g_hash_table_size (server->priv->clients) == 0)
+            g_signal_emit (server, x_server_signals[X_SERVER_RESET], 0);
+
+        return G_SOURCE_REMOVE;
+    }
+
+    return G_SOURCE_CONTINUE;
 }
 
 static gboolean
 socket_connect_cb (GIOChannel *channel, GIOCondition condition, gpointer data)
 {
     XServer *server = data;
-    GSocket *data_socket;
-    XClient *client;
-    GError *error = NULL;
 
-    data_socket = g_socket_accept (server->priv->socket, NULL, &error);
+    g_autoptr(GError) error = NULL;
+    g_autoptr(GSocket) data_socket = g_socket_accept (server->priv->socket, NULL, &error);
     if (error)
         g_warning ("Error accepting connection: %s", strerror (errno));
-    g_clear_error (&error);
     if (!data_socket)
         return FALSE;
 
-    client = g_object_new (x_client_get_type (), NULL);
+    XClient *client = g_object_new (x_client_get_type (), NULL);
     client->priv->server = server;
-    g_signal_connect (client, X_CLIENT_SIGNAL_DISCONNECTED, G_CALLBACK (x_client_disconnected_cb), server);
-    client->priv->socket = data_socket;
-    client->priv->channel = g_io_channel_unix_new (g_socket_get_fd (data_socket));
+    client->priv->socket = g_steal_pointer (&data_socket);
+    client->priv->channel = g_io_channel_unix_new (g_socket_get_fd (client->priv->socket));
+    g_io_add_watch (client->priv->channel, G_IO_IN | G_IO_HUP, client_read_cb, client);
     g_hash_table_insert (server->priv->clients, client->priv->channel, client);
 
     g_signal_emit (server, x_server_signals[X_SERVER_CLIENT_CONNECTED], 0, client);
@@ -145,13 +154,10 @@ socket_connect_cb (GIOChannel *channel, GIOCondition condition, gpointer data)
 gboolean
 x_server_start (XServer *server)
 {
-    gchar *name;
-    GError *error = NULL;
-
-    name = g_strdup_printf (".x:%d", server->priv->display_number);
+    g_autofree gchar *name = g_strdup_printf (".x:%d", server->priv->display_number);
     server->priv->socket_path = g_build_filename (g_getenv ("LIGHTDM_TEST_ROOT"), name, NULL);
-    g_free (name);
 
+    g_autoptr(GError) error = NULL;
     server->priv->socket = g_socket_new (G_SOCKET_FAMILY_UNIX, G_SOCKET_TYPE_STREAM, G_SOCKET_PROTOCOL_DEFAULT, &error);
     if (!server->priv->socket ||
         !g_socket_bind (server->priv->socket, g_unix_socket_address_new (server->priv->socket_path), TRUE, &error) ||
@@ -210,4 +216,12 @@ x_server_class_init (XServerClass *klass)
                       NULL, NULL,
                       NULL,
                       G_TYPE_NONE, 1, x_client_get_type ());
+    x_server_signals[X_SERVER_RESET] =
+        g_signal_new (X_SERVER_SIGNAL_RESET,
+                      G_TYPE_FROM_CLASS (klass),
+                      G_SIGNAL_RUN_LAST,
+                      G_STRUCT_OFFSET (XServerClass, reset),
+                      NULL, NULL,
+                      NULL,
+                      G_TYPE_NONE, 0);
 }

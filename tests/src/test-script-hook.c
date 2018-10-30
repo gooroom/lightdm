@@ -9,8 +9,6 @@ static GKeyFile *config;
 int
 main (int argc, char **argv)
 {
-    GString *status_text;
-
 #if !defined(GLIB_VERSION_2_36)
     g_type_init ();
 #endif
@@ -26,12 +24,11 @@ main (int argc, char **argv)
         return EXIT_FAILURE;
     }
 
-    status_text = g_string_new ("SCRIPT-HOOK");
+    g_autoptr(GString) status_text = g_string_new ("SCRIPT-HOOK");
     g_string_append_printf (status_text, " %s", argv[1]);
     if (g_getenv ("USER"))
         g_string_append_printf (status_text, " USER=%s", g_getenv ("USER"));
     status_notify ("%s", status_text->str);
-    g_string_free (status_text, TRUE);
 
     if (argc > 2)
         return atoi (argv[2]);
