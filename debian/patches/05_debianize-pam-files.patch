@@ -62,7 +62,6 @@ index fed8a9b..f7f77d4 100644
 +@include common-password
 diff --git a/data/pam/lightdm-autologin b/data/pam/lightdm-autologin
 index ba7a68c..ad9c4ef 100644
->>>>>>> debian/master
 --- a/data/pam/lightdm-autologin
 +++ b/data/pam/lightdm-autologin
 @@ -1,20 +1,37 @@
