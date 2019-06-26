@@ -1,0 +1,30 @@
+diff --git a/src/Makefile.am b/src/Makefile.am
+index e450197..def8835 100644
+--- a/src/Makefile.am
++++ b/src/Makefile.am
+@@ -90,7 +90,8 @@ lightdm_CFLAGS = \
+ 	-DCACHE_DIR=\"$(localstatedir)/cache/lightdm\" \
+ 	-DSESSIONS_DIR=\"$(pkgdatadir)/sessions:$(datadir)/xsessions:$(datadir)/wayland-sessions\" \
+ 	-DWAYLAND_SESSIONS_DIR=\"$(datadir)/wayland-sessions\" \
+-	-DREMOTE_SESSIONS_DIR=\"$(pkgdatadir)/remote-sessions\"
++	-DREMOTE_SESSIONS_DIR=\"$(pkgdatadir)/remote-sessions\" \
++	-DLOCALEDIR=\"$(localedir)\"
+ 
+ lightdm_LDADD = \
+ 	$(LIGHTDM_LIBS) \
+diff --git a/src/lightdm.c b/src/lightdm.c
+index c54f1ba..b2b7797 100644
+--- a/src/lightdm.c
++++ b/src/lightdm.c
+@@ -539,6 +539,11 @@ login1_service_seat_removed_cb (Login1Service *service, Login1Seat *login1_seat)
+ int
+ main (int argc, char **argv)
+ {
++    setlocale (LC_ALL, "");
++    bindtextdomain (GETTEXT_PACKAGE, LOCALEDIR);
++    bind_textdomain_codeset (GETTEXT_PACKAGE, "UTF-8");
++    textdomain (GETTEXT_PACKAGE);
++
+     /* Disable the SIGPIPE handler - this is a stupid Unix hangover behaviour.
+      * We will handle pipes / sockets being closed instead of having the whole daemon be killed...
+      * http://stackoverflow.com/questions/8369506/why-does-sigpipe-exist
