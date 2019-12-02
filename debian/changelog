@@ -1,3 +1,23 @@
+lightdm (1.26.0-4+grm2u1) unstable; urgency=medium
+
+  [ Yves-Alexis Perez ]
+  * [08594793] Import Debian changes 1.18.3-1
+
+  [ jongkyung.woo ]
+  * [aa539074] Removed lightdm-gtk-greeter dependency in control
+  * [0c930a21] Removed lightdm-gtk-greeter dependency in control
+  * [e13e9abf] Removed lightdm-gtk-greeter dependency in control
+
+  [ gooroom ]
+  * [1919d733] Version 1.18.3-1+grm1u1 released
+
+  [ cjheo ]
+  * [9a5e1947] Defines locale for pam modules
+
+  [ Gooroom Autobuilder ]
+
+ -- Gooroom Autobuilder <jenkins@gooroom.kr>  Mon, 02 Dec 2019 13:20:59 +0900
+
 lightdm (1.26.0-4) unstable; urgency=medium
 
   * d/control: replace libpam-systemd dep by logind (closes: #922160)
