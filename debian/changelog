@@ -1,3 +1,42 @@
+lightdm (1.26.0-7) unstable; urgency=medium
+
+  [ Debian Janitor ]
+  * Apply multi-arch hints.
+  * Trim trailing whitespace.
+  * Bump debhelper from old 11 to 12.
+  * Set upstream metadata fields: Bug-Database, Bug-Submit, Repository,
+    Repository-Browse.
+
+  [ Yves-Alexis Perez ]
+  * d/control: drop build-dep on gnome-doc-utils (Closes: #945292)
+  * d/control: update standards version to 4.4.1
+  * d/lightdm.service: improve systemd unit file (Closes: #950390)
+  * d/control: update standards version to 4.5.0
+  * d/rules: don't run installsystemd at all
+  * d/lightdm.service: manually install systemd unit file
+
+ -- Yves-Alexis Perez <corsac@debian.org>  Mon, 03 Feb 2020 20:13:13 +0100
+
+lightdm (1.26.0-6) unstable; urgency=medium
+
+  * drop liblightdm-qt packages for Qt4 Debian removal.
+    Thanks Moritz Mühlenhoff for the patch (closes: #875029)
+  * d/control: update dh compat level to 11
+  * d/rules: explicitly enable gtk-doc.
+    It seems that default behavior changed at some point, making the package
+    FTBFS because dh_install can't find the gtk-doc folder.
+  * d/rules: override dh_installsystemd instead of dh_systemd_start
+
+ -- Yves-Alexis Perez <corsac@debian.org>  Tue, 17 Sep 2019 22:51:36 +0200
+
+lightdm (1.26.0-5) unstable; urgency=medium
+
+  * d/control: drop consolekit dep, use a real package as first alternative
+  * move to debhelper-compat b-d for dh version
+  * d/control: update standards version to 4.4.0
+
+ -- Yves-Alexis Perez <corsac@debian.org>  Wed, 10 Jul 2019 22:34:59 +0200
+
 lightdm (1.26.0-4) unstable; urgency=medium
 
   * d/control: replace libpam-systemd dep by logind (closes: #922160)
@@ -96,8 +135,8 @@ lightdm (1.18.3-3) unstable; urgency=medium
     - replace libgcrypt11-dev by libgcrypt20-dev.               closes: #864121
     - update standards version to 4.0.0.
     - move gir1.2-lightdm-1 to section introspection.
-    - add dependency on gir1.2-lightdm-1 to liblightdm-gobject-dev. 
-    - add dependency on ${gir:Depends} to gir1.2-lightdm-1. 
+    - add dependency on gir1.2-lightdm-1 to liblightdm-gobject-dev.
+    - add dependency on ${gir:Depends} to gir1.2-lightdm-1.
 
  -- Yves-Alexis Perez <corsac@debian.org>  Sun, 18 Jun 2017 19:46:04 +0200
 
@@ -160,7 +199,7 @@ lightdm (1.18.2-1) unstable; urgency=medium
   * New upstream bugfix release.
   * debian/control:
     - update standards version to 3.9.8.
-    - run wrap-and-sort 
+    - run wrap-and-sort
 
  -- Yves-Alexis Perez <corsac@debian.org>  Tue, 28 Jun 2016 21:43:15 +0200
 
@@ -185,7 +224,7 @@ lightdm (1.16.7-1) unstable; urgency=medium
   * debian/control:
     - make libaudit-dev build-dep linux-only, fix FTBFS on !linux.
                                                                 closes: #815343
-    - update standards version to 3.9.7. 
+    - update standards version to 3.9.7.
 
  -- Yves-Alexis Perez <corsac@debian.org>  Mon, 22 Feb 2016 13:20:36 +0100
 
@@ -612,7 +651,7 @@ lightdm (1.4.0-1) experimental; urgency=low
     - add build-dep on itstool.
   * debian/lightdm.install:
     - stop installing lightdm upstart script since it's broken. closes: #679409
-    - install /u/s/help.* 
+    - install /u/s/help.*
     - install PAM files
   * debian/rules:
     - stop installing own PAM files.
@@ -827,7 +866,7 @@ lightdm (0.9.6-1) unstable; urgency=low
   * debian/patches:
     - 01_set-default-path, 02_default-config, 03_quit-plymouth,
       04_default-gtk-greeter-config refreshed.
-    - 05_always-export-XAUTHORITY dropped, included upstream. 
+    - 05_always-export-XAUTHORITY dropped, included upstream.
     - 05_dont-add-pkglibexecdir-path added, don't add /usr/lib/lightdm/lightdm
       to the PATH, it's ugly.
   * debian/rules:
