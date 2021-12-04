@@ -1,3 +1,13 @@
+lightdm (1.26.0-7+grm3u1) unstable; urgency=medium
+
+  [ Yves-Alexis Perez ]
+  * [08594793] Import Debian changes 1.18.3-1
+
+  [ jongkyung.woo ]
+  * [c860562d] Rebuild on gooroom-3.0
+
+ -- Gooroom Autobuilder <jenkins@gooroom.kr>  Sat, 04 Dec 2021 16:23:02 +0900
+
 lightdm (1.26.0-7) unstable; urgency=medium
 
   [ Debian Janitor ]
