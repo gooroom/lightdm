@@ -1,3 +1,25 @@
+lightdm (1.26.0-7+grm3u1) unstable; urgency=medium
+
+  [ Yves-Alexis Perez ]
+  * [08594793] Import Debian changes 1.18.3-1
+
+  [ jongkyung.woo ]
+  * [aa539074] Removed lightdm-gtk-greeter dependency in control
+  * [0c930a21] Removed lightdm-gtk-greeter dependency in control
+  * [e13e9abf] Removed lightdm-gtk-greeter dependency in control
+  * [c860562d] Rebuild on gooroom-3.0
+
+  [ gooroom ]
+  * [1919d733] Version 1.18.3-1+grm1u1 released
+
+  [ cjheo ]
+  * [9a5e1947] Defines locale for pam modules
+
+  [ jenkins ]
+  * [4414f101] Version 1.26.0-4+grm2u1 released
+
+ -- Gooroom Autobuilder <jenkins@gooroom.kr>  Sat, 04 Dec 2021 16:23:02 +0900
+
 lightdm (1.26.0-7) unstable; urgency=medium
 
   [ Debian Janitor ]
